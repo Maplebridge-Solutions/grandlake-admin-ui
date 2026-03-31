@@ -1,0 +1,5 @@
+{
+  "name": "GLK Transit Admin",
+  "description": "Official Admin panel for Grand Lake Bus Transit. Manage bus routes, schedules, and digital ticketing with ease.",
+  "requestFramePermissions": []
+}
