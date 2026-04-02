@@ -1,14 +1,21 @@
 "use client";
 
-import { Search, Bell, RefreshCw, ChevronDown } from "lucide-react";
+import { Search, Bell, RefreshCw, ChevronDown, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import NotificationsModal from "./notificationModal";
+import { useRouter } from "next/navigation";
 
 export default function Topbar() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    document.cookie = "auth_token=; path=/; max-age=0";
+    router.push("/login");
+  };
 
   return (
     <header className="h-20 bg-white border-b border-surface-subtle flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
@@ -93,6 +100,10 @@ export default function Topbar() {
             size={16}
             className="text-content-muted group-hover:text-brand transition-colors hidden sm:block"
           />
+          {/* <button className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-content-muted hover:bg-red-50 hover:text-red-500 transition-all">
+           
+          </button> */}
+          <LogOut size={14} onClick={handleLogout} />
         </div>
       </div>
     </header>
