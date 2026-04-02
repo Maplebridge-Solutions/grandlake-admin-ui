@@ -11,9 +11,11 @@ import {
   ShieldCheck,
   Menu,
   X,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 const navItems = [
@@ -31,7 +33,13 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+
+  const handleLogout = () => {
+    document.cookie = "auth_token=; path=/; max-age=0";
+    router.push("/login");
+  };
 
   return (
     <>
@@ -53,23 +61,22 @@ export default function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 flex items-center gap-3">
-            <div className="relative w-10 h-10">
+            <div className="relative w-20 h-20">
               <Image
-                src="https://picsum.photos/seed/glk-logo/100/100"
+                src="/assets/logo.png"
                 alt="GLK Logo"
                 fill
                 className="object-contain"
-                referrerPolicy="no-referrer"
               />
             </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-content-primary leading-tight">
-                MUNICIPALITY OF
+            {/* <div className="flex flex-col">
+              <span className="text-lg font-bold text-content-primary leading-tight">
+                GLKTransit
               </span>
               <span className="text-sm font-extrabold text-content-primary leading-tight">
                 GRAND LAKE
               </span>
-            </div>
+            </div> */}
           </div>
 
           {/* Navigation */}
@@ -103,20 +110,23 @@ export default function Sidebar() {
           </nav>
 
           {/* Footer */}
-          <div className="p-6 border-t border-surface-subtle">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-brand-light flex items-center justify-center text-brand font-bold">
-                MS
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-content-primary">
-                  Maplebridge Solutions
-                </span>
-                <span className="text-[10px] text-content-muted">
-                  Admin Panel v1.0
-                </span>
-              </div>
+          <div className="p-6 border-t border-surface-subtle space-y-4">
+            <div className="relative ">
+              <Image
+                src="/assets/maplebridgelogo.jpg"
+                alt="Maplebridge Logo"
+                width={120}
+                height={60}
+                className="object-contain"
+              />
             </div>
+            {/* <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-content-muted hover:bg-red-50 hover:text-red-500 transition-all"
+            >
+              <LogOut size={20} />
+              Logout
+            </button> */}
           </div>
         </div>
       </aside>

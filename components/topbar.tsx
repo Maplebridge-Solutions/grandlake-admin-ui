@@ -4,8 +4,12 @@ import { Search, Bell, RefreshCw, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import NotificationsModal from "./notificationModal";
 
 export default function Topbar() {
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
   return (
     <header className="h-20 bg-white border-b border-surface-subtle flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
       {/* Search Bar - Hidden on small mobile, compact on others */}
@@ -35,21 +39,38 @@ export default function Topbar() {
       {/* Right Side Actions */}
       <div className="flex items-center gap-2 sm:gap-6">
         <div className="flex items-center gap-1 sm:gap-2">
-          <Button
+          {/* <Button
             variant="ghost"
             size="icon"
             className="text-content-muted hover:text-brand hover:bg-brand-light rounded-full"
           >
-            <RefreshCw size={20} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-content-muted hover:text-brand hover:bg-brand-light rounded-full relative"
-          >
-            <Bell size={20} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-status-error-bright rounded-full border-2 border-white" />
-          </Button>
+            <RefreshCw size={80} />
+          </Button> */}
+          <div className="relative">
+            {/* <Button
+              variant="ghost"
+              // size="icon"
+              className="text-content-muted hover:text-brand hover:bg-brand-light rounded-full relative"
+            >
+              <Bell
+                size={1000}
+                onClick={() => setIsNotificationsOpen((v) => !v)}
+              />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-status-error-bright rounded-full border-2 border-white" />
+            </Button> */}
+            <div className="text-content-muted hover:text-brand hover:bg-brand-light rounded-full relative">
+              <Bell
+                size={20}
+                onClick={() => setIsNotificationsOpen((v) => !v)}
+              />
+              <span className="absolute bottom-4 right-0 w-2 h-2 bg-status-error-bright rounded-full border-2 border-white" />
+            </div>
+
+            <NotificationsModal
+              isOpen={isNotificationsOpen}
+              onClose={() => setIsNotificationsOpen(false)}
+            />
+          </div>
         </div>
 
         {/* User Profile */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { X, MapPin, Bus, Navigation, Clock } from "lucide-react";
+import { X, MapPin, Bus, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";

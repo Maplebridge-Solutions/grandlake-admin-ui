@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import BusMap from "@/components/bus-map";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,15 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp,
-  TrendingDown,
   Bus,
-  MapPin,
-  AlertCircle,
-  Plus,
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,14 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-interface BusOperation {
-  fleet: string;
-  route: string;
-  gps: string;
-  delay: string;
-  status: string;
-}
+import type { BusOperation } from "@/lib/types/dashboard";
 
 const summaryStats = [
   {
@@ -153,7 +141,6 @@ const filterTabs = [
   { label: "All buses", value: "all" },
   { label: "Active only", value: "active" },
   { label: "Inactive only", value: "inactive" },
-  { label: "See more", value: "more" },
 ];
 
 export default function DashboardPage() {
@@ -270,23 +257,28 @@ export default function DashboardPage() {
                     Tap on an item to view real time location and more
                   </p>
                 </div>
-                <Tabs
-                  value={activeFilter}
-                  onValueChange={setActiveFilter}
-                  className="w-auto"
-                >
-                  <TabsList className="bg-surface-page border border-surface-subtle rounded-full p-1 h-auto flex-wrap">
-                    {filterTabs.map((tab) => (
-                      <TabsTrigger
-                        key={tab.value}
-                        value={tab.value}
-                        className="rounded-full px-4 sm:px-6 py-2 data-[state=active]:bg-brand data-[state=active]:text-white"
-                      >
-                        {tab.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
+                <div className="flex items-center gap-2 p-1 bg-surface-page border border-surface-subtle rounded-full flex-wrap">
+                  {filterTabs.map((tab) => (
+                    <button
+                      key={tab.value}
+                      onClick={() => setActiveFilter(tab.value)}
+                      className={cn(
+                        "px-4 sm:px-6 py-2 rounded-full text-sm font-bold transition-all",
+                        activeFilter === tab.value
+                          ? "bg-brand text-white shadow-md shadow-brand/20"
+                          : "text-content-muted hover:text-brand hover:bg-brand-light/50",
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                  <Link
+                    href="/manage-buses"
+                    className="px-4 sm:px-6 py-2 rounded-full text-sm font-bold text-content-muted hover:text-brand hover:bg-brand-light/50 transition-all"
+                  >
+                    See more
+                  </Link>
+                </div>
               </div>
 
               <div className="rounded-2xl border border-surface-subtle overflow-x-auto">
