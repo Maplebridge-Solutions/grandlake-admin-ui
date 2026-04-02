@@ -1,13 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/change-password"];
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Simple simulation: check for a cookie or just allow for now
-  // In a real app, you'd check for a session token
-  const isAuthenticated = true; // Placeholder
+  const isAuthenticated = request.cookies.has("auth_token");
+  const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
-  if (pathname.startsWith("/dashboard") && !isAuthenticated) {
+  if (!isAuthenticated && !isPublicPath) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  if (isAuthenticated && isPublicPath) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -15,5 +20,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|assets).*)"],
 };

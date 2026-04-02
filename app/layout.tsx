@@ -3,7 +3,7 @@ import { Work_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 const workSans = Work_Sans({
   subsets: ["latin"],
@@ -39,7 +39,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("h-full", "antialiased", workSans.variable, "font-sans", inter.variable)}>
+    <html
+      lang="en"
+      className={cn(
+        "h-full",
+        "antialiased",
+        workSans.variable,
+        "font-sans",
+        inter.variable,
+      )}
+    >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
       </body>
