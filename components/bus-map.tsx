@@ -105,7 +105,7 @@ export default function BusMap({
                 <MapPin size={20} />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-content-muted uppercase tracking-wider">
+                <span className="text-xs font-bold text-content-muted uppercase tracking-wider">
                   Current Location
                 </span>
                 <span className="text-sm font-bold text-content-primary">
@@ -157,7 +157,7 @@ export default function BusMap({
                         {stop.name}
                       </span>
                       {stop.status === "current" && (
-                        <Badge className="bg-brand-pale text-brand border-none text-[10px] font-bold">
+                        <Badge className="bg-brand-pale text-brand border-none text-xs font-bold px-3 py-1">
                           On time
                         </Badge>
                       )}

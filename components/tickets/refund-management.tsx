@@ -1,254 +1,113 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Filter, Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Filter, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import Pagination from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ApproveRefundModal, DeclineRefundModal } from "./refund-action-modals";
-import type { PendingRefund, RefundHistory } from "@/lib/types/tickets";
+import { getTransactionOrders } from "@/lib/api/transactions";
+import type { TransactionOrderRecord } from "@/lib/types/tickets";
 
-function isPendingRefund(item: PendingRefund | RefundHistory): item is PendingRefund {
-  return "requestedOn" in item;
+type DatePreset = "today" | "week" | "month" | "year";
+
+const DATE_PRESETS: { id: DatePreset; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "week", label: "This week" },
+  { id: "month", label: "This month" },
+  { id: "year", label: "This year" },
+];
+
+function toDateString(d: Date) {
+  return d.toISOString().split("T")[0];
 }
 
-const pendingRefunds: PendingRefund[] = [
-  {
-    id: "1",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Jeremiah Agiopus",
-    reason: "Bus never arrived",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-  {
-    id: "2",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Jenny Wilson",
-    reason: "Bus never arrived",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-  {
-    id: "3",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Marvin McKinney",
-    reason: "Bus never arrived",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-  {
-    id: "4",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Jacob Jones",
-    reason: "Accidental purchase",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-  {
-    id: "5",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Guy Hawkins",
-    reason: "Bus never arrived",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-  {
-    id: "6",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Arlene McCoy",
-    reason: "App crashed",
-    price: "CA$2.50",
-    status: "Active",
-  },
-  {
-    id: "7",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Albert Flores",
-    reason: "Bus never arrived",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-  {
-    id: "8",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Theresa Webb",
-    reason: "Bus never arrived",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-  {
-    id: "9",
-    requestedOn: "Today 08:00am",
-    ticketName: "Youth 1 Ride",
-    customerName: "Jane Cooper",
-    reason: "Bus never arrived",
-    price: "CA$2.50",
-    status: "Inactive",
-  },
-];
+function getDateRange(preset: DatePreset) {
+  const now = new Date();
+  if (preset === "today") {
+    const d = toDateString(now);
+    return { startDate: d, endDate: d };
+  }
+  if (preset === "week") {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { startDate: toDateString(start), endDate: toDateString(end) };
+  }
+  if (preset === "month") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { startDate: toDateString(start), endDate: toDateString(end) };
+  }
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end = new Date(now.getFullYear(), 11, 31);
+  return { startDate: toDateString(start), endDate: toDateString(end) };
+}
 
-const refundHistory: RefundHistory[] = [
-  {
-    id: "h1",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Jeremiah Agiopus",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Completed",
-  },
-  {
-    id: "h2",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Albert Flores",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Completed",
-  },
-  {
-    id: "h3",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Marvin McKinney",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Pending",
-  },
-  {
-    id: "h4",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Leslie Alexander",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Completed",
-  },
-  {
-    id: "h5",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Ralph Edwards",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Pending",
-  },
-  {
-    id: "h6",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Brooklyn Simmons",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Pending",
-  },
-  {
-    id: "h7",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Dianne Russell",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Declined",
-  },
-  {
-    id: "h8",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Ronald Richards",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Pending",
-  },
-  {
-    id: "h9",
-    refundedOn: "Today 09:00am",
-    ticketName: "Youth 1 Ride",
-    refundedBy: "Hannah Priyanka",
-    customerName: "Esther Howard",
-    price: "CA$2.50",
-    refundedTo: "VISA **** 2343",
-    reason: "Customer called...",
-    status: "Failed",
-  },
-];
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" });
+
+const formatAmount = (amount: number, currency: string) =>
+  `${currency.toUpperCase()} $${(amount / 100).toFixed(2)}`;
 
 export default function RefundManagement() {
-  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
+  const [records, setRecords] = useState<TransactionOrderRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRefund, setSelectedRefund] = useState<PendingRefund | undefined>(undefined);
-  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
-  const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
+  const [datePreset, setDatePreset] = useState<DatePreset>("week");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const handleApprove = (refund: PendingRefund) => {
-    setSelectedRefund(refund);
-    setIsApproveModalOpen(true);
+  const fetchRefunds = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getTransactionOrders({
+        page,
+        limit: pageSize,
+        isRefunded: true,
+        ...getDateRange(datePreset),
+      });
+      setRecords(Array.isArray(res.data) ? res.data : []);
+      setTotalPages(res.meta?.totalPages ?? 1);
+    } catch {
+      setRecords([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, datePreset]);
+
+  useEffect(() => {
+    fetchRefunds();
+  }, [fetchRefunds]);
+
+  const handlePresetChange = (preset: DatePreset) => {
+    setDatePreset(preset);
+    setPage(1);
   };
 
-  const handleDecline = (refund: PendingRefund) => {
-    setSelectedRefund(refund);
-    setIsDeclineModalOpen(true);
-  };
+  const q = searchQuery.toLowerCase();
+  const filtered = records.filter((r) => {
+    const name =
+      `${r.contactDetails?.firstName ?? ""} ${r.contactDetails?.lastName ?? ""}`.toLowerCase();
+    const ticket = (r.items?.[0] ? (typeof r.items[0].product === "object" ? r.items[0].product.name : r.items[0].product) : "—").toLowerCase();
+    return name.includes(q) || ticket.includes(q);
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-4 border-b border-surface-subtle w-full">
-          <button
-            onClick={() => setActiveTab("pending")}
-            className={cn(
-              "pb-4 px-2 text-sm font-bold transition-all relative",
-              activeTab === "pending"
-                ? "text-brand"
-                : "text-content-muted hover:text-brand",
-            )}
-          >
-            Pending Requests
-            {activeTab === "pending" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand rounded-full" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={cn(
-              "pb-4 px-2 text-sm font-bold transition-all relative",
-              activeTab === "history"
-                ? "text-brand"
-                : "text-content-muted hover:text-brand",
-            )}
-          >
-            Refund History
-            {activeTab === "history" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand rounded-full" />
-            )}
-          </button>
-        </div>
+      {/* Tab header */}
+      <div className="flex gap-4 border-b border-surface-subtle w-full">
+        <button className="pb-4 px-2 text-sm font-bold transition-all relative text-brand">
+          Refund History
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand rounded-full" />
+        </button>
       </div>
 
       {/* Search & Filter */}
@@ -259,187 +118,105 @@ export default function RefundManagement() {
             size={18}
           />
           <Input
-            placeholder={
-              activeTab === "pending"
-                ? "search for a refund by user name, ticket name or filter by date"
-                : "search for a refund by user/admin name, ticket name or filter by date"
-            }
+            placeholder="Search refunds by user, ticket name..."
             className="pl-12 h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           />
         </div>
-        <Button
-          variant="outline"
-          className="h-12 px-6 rounded-2xl border-surface-subtle font-bold text-content-muted hover:text-brand hover:border-brand transition-all"
-        >
-          <Filter size={18} className="mr-2" />
-          This week
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-2 h-12 px-5 rounded-2xl border text-sm font-semibold shrink-0 transition-all whitespace-nowrap border-brand bg-brand-light text-brand">
+            <Filter size={15} />
+            {DATE_PRESETS.find((p) => p.id === datePreset)?.label}
+            <ChevronDown size={14} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle shadow-xl p-1">
+            {DATE_PRESETS.map((preset) => (
+              <DropdownMenuItem
+                key={preset.id}
+                onClick={() => handlePresetChange(preset.id)}
+                className={cn("rounded-lg cursor-pointer font-medium", datePreset === preset.id && "text-brand font-bold")}
+              >
+                {preset.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-surface-subtle">
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                {activeTab === "pending" ? "Requested On" : "Refunded On"}
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Ticket Name
-              </th>
-              {activeTab === "history" && (
-                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                  Refunded By
-                </th>
-              )}
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Customer Name
-              </th>
-              {activeTab === "pending" && (
-                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                  Reason Given
-                </th>
-              )}
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Price
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                {activeTab === "pending" ? "Ticket Status" : "Refunded To"}
-              </th>
-              {activeTab === "history" && (
-                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                  Reason For Refund
-                </th>
-              )}
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                {activeTab === "pending" ? "Actions" : "Refund Status"}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-subtle">
-            {(activeTab === "pending" ? pendingRefunds : refundHistory).map(
-              (item: PendingRefund | RefundHistory) => (
-                <tr
-                  key={item.id}
-                  className="group hover:bg-surface-page/50 transition-colors"
-                >
-                  <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                    {isPendingRefund(item) ? item.requestedOn : item.refundedOn}
-                  </td>
-                  <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                    {item.ticketName}
-                  </td>
-                  {activeTab === "history" && !isPendingRefund(item) && (
-                    <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                      {item.refundedBy}
-                    </td>
-                  )}
-                  <td className="py-4 px-4 text-sm text-content-primary font-bold">
-                    {item.customerName}
-                  </td>
-                  {activeTab === "pending" && isPendingRefund(item) && (
-                    <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                      {item.reason}
-                    </td>
-                  )}
-                  <td className="py-4 px-4 text-sm text-content-primary font-bold">
-                    {item.price}
-                  </td>
-                  <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                    {isPendingRefund(item) ? (
-                      <span
-                        className={cn(
-                          "px-3 py-1 rounded-full text-xs font-bold border",
-                          item.status === "Active"
-                            ? "bg-green-50 text-green-700 border-green-100"
-                            : "bg-gray-100 text-gray-700 border-gray-200",
-                        )}
-                      >
-                        {item.status}
-                      </span>
-                    ) : (
-                      item.refundedTo
-                    )}
-                  </td>
-                  {activeTab === "history" && !isPendingRefund(item) && (
-                    <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                      {item.reason}
-                    </td>
-                  )}
-                  <td className="py-4 px-4">
-                    {isPendingRefund(item) ? (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 px-3 rounded-xl border-green-200 text-green-700 hover:bg-green-50 font-bold"
-                          onClick={() => handleApprove(item)}
-                        >
-                          <Check size={16} className="mr-1.5" />
-                          Approve
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 px-3 rounded-xl border-red-200 text-red-700 hover:bg-red-50 font-bold"
-                          onClick={() => handleDecline(item)}
-                        >
-                          <X size={16} className="mr-1.5" />
-                          Decline
-                        </Button>
-                      </div>
-                    ) : (
-                      <span
-                        className={cn(
-                          "px-3 py-1 rounded-full text-xs font-bold border",
-                          item.status === "Completed"
-                            ? "bg-green-50 text-green-700 border-green-100"
-                            : item.status === "Pending"
-                              ? "bg-orange-50 text-orange-700 border-orange-100"
-                              : item.status === "Declined"
-                                ? "bg-red-50 text-red-700 border-red-100"
-                                : "bg-red-50 text-red-700 border-red-100",
-                        )}
-                      >
-                        {item.status}
-                      </span>
-                    )}
+      <div className="bg-white border border-surface-subtle rounded-3xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto overscroll-x-contain touch-pan-x">
+          <table className="min-w-[700px] w-full text-left border-collapse">
+            <thead className="bg-surface-page">
+              <tr className="border-b border-surface-subtle">
+                <th className="py-4 px-4 text-xs font-bold text-content-primary">Refunded On</th>
+                <th className="py-4 px-4 text-xs font-bold text-content-primary">Ticket Name</th>
+                <th className="py-4 px-4 text-xs font-bold text-content-primary">Customer Name</th>
+                <th className="py-4 px-4 text-xs font-bold text-content-primary">Amount</th>
+                <th className="py-4 px-4 text-xs font-bold text-content-primary">Payment Method</th>
+                <th className="py-4 px-4 text-xs font-bold text-content-primary">Refund Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-subtle">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <td key={j} className="py-4 px-4">
+                        <div className="h-4 bg-surface-subtle rounded animate-pulse" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-content-muted text-sm">
+                    No refund records found.
                   </td>
                 </tr>
-              ),
-            )}
-          </tbody>
-        </table>
+              ) : (
+                filtered.map((r) => {
+                  const customerName =
+                    r.contactDetails?.firstName || r.contactDetails?.lastName
+                      ? `${r.contactDetails.firstName ?? ""} ${r.contactDetails.lastName ?? ""}`.trim()
+                      : "—";
+                  const ticketName = r.items?.[0] ? (typeof r.items[0].product === "object" ? r.items[0].product.name : r.items[0].product) : "—";
+
+                  return (
+                    <tr key={r._id} className="hover:bg-brand-light/20 border-b border-surface-subtle transition-colors">
+                      <td className="py-4 px-4 text-sm text-content-primary">{formatDate(r.updatedAt)}</td>
+                      <td className="py-4 px-4 text-sm text-content-primary font-medium">{ticketName}</td>
+                      <td className="py-4 px-4 text-sm text-content-primary font-bold">{customerName}</td>
+                      <td className="py-4 px-4 text-sm text-content-primary font-bold">
+                        {formatAmount(r.totalAmount, r.currency)}
+                      </td>
+                      <td className="py-4 px-4 text-sm text-content-primary capitalize">{r.paymentMethod}</td>
+                      <td className="py-4 px-4">
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border bg-green-50 text-green-700 border-green-100">
+                          Refunded
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {!loading && filtered.length > 0 && (
+          <div className="px-6 pb-4">
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={() => {}}
+            />
+          </div>
+        )}
       </div>
-
-      <Pagination />
-
-      {/* Modals */}
-      {selectedRefund && (
-        <>
-          <ApproveRefundModal
-            isOpen={isApproveModalOpen}
-            onClose={() => setIsApproveModalOpen(false)}
-            refundData={{
-              customerName: selectedRefund.customerName,
-              price: selectedRefund.price,
-              ticketStatus: selectedRefund.status,
-            }}
-          />
-          <DeclineRefundModal
-            isOpen={isDeclineModalOpen}
-            onClose={() => setIsDeclineModalOpen(false)}
-            refundData={{
-              customerName: selectedRefund.customerName,
-              price: selectedRefund.price,
-              ticketStatus: selectedRefund.status,
-              isAlreadyInUse: selectedRefund.status === "Active",
-            }}
-          />
-        </>
-      )}
     </div>
   );
 }

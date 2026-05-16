@@ -147,7 +147,7 @@ export function DeclineRefundModal({
                     {refundData.ticketStatus}
                   </span>
                   {refundData.isAlreadyInUse && (
-                    <div className="flex items-center text-red-500 text-[10px] font-bold gap-1">
+                    <div className="flex items-center text-red-500 text-xs font-bold gap-1">
                       <AlertCircle size={12} />
                       Ticket is already in use
                     </div>

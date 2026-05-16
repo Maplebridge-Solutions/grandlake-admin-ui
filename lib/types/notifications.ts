@@ -10,4 +10,5 @@ export interface Notification {
 export interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onUnreadCountChange?: (count: number | ((prev: number) => number)) => void;
 }

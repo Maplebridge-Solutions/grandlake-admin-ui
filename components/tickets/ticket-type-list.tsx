@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Filter, MoreHorizontal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Filter, MoreHorizontal, ChevronDown } from "lucide-react";
 import Pagination from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,120 +10,97 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { getAllTicketCatalog } from "@/lib/api/tickets";
+import type { TicketCatalogRecord } from "@/lib/types/tickets";
+import EditTicketTypeModal from "./edit-ticket-type-modal";
+import DeleteTicketTypeModal from "./delete-ticket-type-modal";
 
-const ticketTypes = [
-  {
-    id: "1",
-    name: "Youth 1 Ride",
-    type: "One-time Pass",
-    routeAccess: "All Routes",
-    price: "CA$2.50",
-    validity: "24 hours",
-    status: "Active",
-  },
-  {
-    id: "2",
-    name: "Adult 1 Ride",
-    type: "One-time Pass",
-    routeAccess: "All Routes",
-    price: "CA$3.00",
-    validity: "24 hours",
-    status: "Active",
-  },
-  {
-    id: "3",
-    name: "Senior 1 Ride",
-    type: "One-time Pass",
-    routeAccess: "All Routes",
-    price: "CA$2.00",
-    validity: "24 hours",
-    status: "Draft",
-  },
-  {
-    id: "4",
-    name: "Weekly Pass",
-    type: "Period Pass",
-    routeAccess: "All Routes",
-    price: "CA$20.00",
-    validity: "7 days",
-    status: "Active",
-  },
-  {
-    id: "5",
-    name: "Monthly Pass",
-    type: "Period Pass",
-    routeAccess: "All Routes",
-    price: "CA$75.00",
-    validity: "30 days",
-    status: "Disabled",
-  },
-  {
-    id: "6",
-    name: "Student Pass",
-    type: "Period Pass",
-    routeAccess: "All Routes",
-    price: "CA$60.00",
-    validity: "30 days",
-    status: "Active",
-  },
-  {
-    id: "7",
-    name: "Day Pass",
-    type: "One-time Pass",
-    routeAccess: "All Routes",
-    price: "CA$8.00",
-    validity: "24 hours",
-    status: "Draft",
-  },
+const CATEGORY_LABEL: Record<string, string> = {
+  SINGLE_RIDE: "Single Ride",
+  MULTI_RIDE: "Multi Ride",
+  DAY_PASS: "Day Pass",
+  WEEK_PASS: "Week Pass",
+  MONTH_PASS: "Month Pass",
+};
+
+const RIDER_LABEL: Record<string, string> = {
+  ADULT: "Adult",
+  YOUTH: "Youth",
+  SENIOR: "Senior",
+  STUDENT: "Student",
+};
+
+type Tab = "all" | "active" | "inactive";
+
+const tabs: { id: Tab; label: string }[] = [
+  { id: "all", label: "All tickets" },
+  { id: "active", label: "Active only" },
+  { id: "inactive", label: "Inactive only" },
 ];
 
-export default function TicketTypeList() {
-  const [activeTab, setActiveTab] = useState("all");
+export default function TicketTypeList({ onCreated }: { onCreated?: number }) {
+  const [tickets, setTickets] = useState<TicketCatalogRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [editTicket, setEditTicket] = useState<TicketCatalogRecord | null>(null);
+  const [deleteTicket, setDeleteTicket] = useState<TicketCatalogRecord | null>(null);
 
-  const tabs = [
-    { id: "all", label: "All tickets" },
-    { id: "active", label: "Active only" },
-    { id: "draft", label: "Draft only" },
-    { id: "disabled", label: "Disabled only" },
-  ];
-
-  const getStatusStyles = (status: string) => {
-    switch (status) {
-      case "Active":
-        return "bg-green-50 text-green-700 border-green-100";
-      case "Draft":
-        return "bg-orange-50 text-orange-700 border-orange-100";
-      case "Disabled":
-        return "bg-gray-100 text-gray-700 border-gray-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-100";
+  const fetchTickets = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params =
+        activeTab === "active"
+          ? { isActive: true, page, limit: pageSize }
+          : activeTab === "inactive"
+            ? { isActive: false, page, limit: pageSize }
+            : { page, limit: pageSize };
+      const res = await getAllTicketCatalog(params);
+      setTickets(res.data);
+      setTotalPages(res.meta?.totalPages ?? 1);
+    } catch {
+      setTickets([]);
+    } finally {
+      setLoading(false);
     }
+  }, [activeTab, page, pageSize]);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
+
+  useEffect(() => {
+    if (onCreated) fetchTickets();
+  }, [onCreated, fetchTickets]);
+
+  const handleTabChange = (id: Tab) => {
+    setActiveTab(id);
+    setPage(1);
   };
 
-  const isEmpty = ticketTypes.length === 0;
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
 
-  if (isEmpty) {
+  const q = searchQuery.toLowerCase();
+  const filtered = tickets.filter(
+    (t) =>
+      t.name.toLowerCase().includes(q) ||
+      t.riderType.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q),
+  );
+
+  if (!loading && tickets.length === 0 && activeTab === "all" && !searchQuery) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-6">
-        <div className="relative w-48 h-48 opacity-50">
-          <Image
-            src="https://picsum.photos/seed/empty-ticket/400/400"
-            alt="No data"
-            fill
-            className="object-contain"
-            referrerPolicy="no-referrer"
-          />
-        </div>
         <div className="text-center">
-          <h3 className="text-xl font-bold text-content-primary">
-            No Ticket Types Created Yet
-          </h3>
-          <p className="text-content-muted mt-2 max-w-xs">
-            Create ticket types to start selling tickets to your users
-          </p>
+          <h3 className="text-xl font-bold text-content-primary">No Ticket Types Created Yet</h3>
+          <p className="text-content-muted mt-2 max-w-xs">Create ticket types to start selling tickets to your users</p>
         </div>
       </div>
     );
@@ -132,127 +108,131 @@ export default function TicketTypeList() {
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 p-1 bg-surface-page rounded-2xl w-fit border border-surface-subtle">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-              activeTab === tab.id
-                ? "bg-brand text-white shadow-md shadow-brand/10"
-                : "text-content-muted hover:text-brand hover:bg-brand-light/50",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <EditTicketTypeModal ticket={editTicket} onClose={() => setEditTicket(null)} onSuccess={fetchTickets} />
+      <DeleteTicketTypeModal ticket={deleteTicket} onClose={() => setDeleteTicket(null)} onSuccess={fetchTickets} />
+      {/* Tabs — dropdown on mobile/tablet, pills on desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="lg:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="rounded-full px-5 h-10 border border-surface-subtle bg-white font-semibold flex items-center gap-2 w-full sm:w-auto text-sm hover:border-brand hover:text-brand transition-all">
+              <Filter size={16} />
+              {tabs.find((t) => t.id === activeTab)?.label ?? "All tickets"}
+              <ChevronDown size={14} className="ml-auto" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="rounded-xl border-surface-subtle w-44">
+              {tabs.map((tab) => (
+                <DropdownMenuItem
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={cn("rounded-lg cursor-pointer", activeTab === tab.id && "text-brand font-bold")}
+                >
+                  {tab.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="hidden lg:flex gap-2 p-1 bg-surface-page rounded-2xl border border-surface-subtle w-fit">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-bold transition-all",
+                activeTab === tab.id
+                  ? "bg-brand text-white shadow-md shadow-brand/10"
+                  : "text-content-muted hover:text-brand hover:bg-brand-light/50",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row items-center gap-4">
+      {/* Search */}
+      <div className="flex flex-col sm:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
-          <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted"
-            size={18}
-          />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted" size={18} />
           <Input
-            placeholder="search for a ticket by name, type"
+            placeholder="Search tickets by name or type..."
             className="pl-12 h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           />
         </div>
-        <Button
-          variant="outline"
-          className="h-12 px-6 rounded-2xl border-surface-subtle font-bold text-content-muted hover:text-brand hover:border-brand transition-all"
-        >
-          <Filter size={18} className="mr-2" />
-          This week
-        </Button>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div className="overflow-x-auto overscroll-x-contain touch-pan-x">
+        <table className="min-w-162 w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-surface-subtle">
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Ticket Name
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Ticket Type
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Route Access
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Price
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Valid For
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Status
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider text-center">
-                Actions
-              </th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">Ticket Name</th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">Rider Type</th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">Category</th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">Rides</th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">Price</th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">Valid For</th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">Status</th>
+              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-subtle">
-            {ticketTypes.map((ticket) => (
-              <tr
-                key={ticket.id}
-                className="group hover:bg-surface-page/50 transition-colors"
-              >
+            {loading ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 8 }).map((__, j) => (
+                    <td key={j} className="py-4 px-4">
+                      <div className="h-4 bg-surface-subtle rounded animate-pulse" />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="py-12 text-center text-content-muted text-sm">No results found.</td>
+              </tr>
+            ) : filtered.map((ticket) => (
+              <tr key={ticket._id} className="group hover:bg-surface-page/50 transition-colors">
+                <td className="py-4 px-4 text-sm text-content-primary font-bold">{ticket.name}</td>
+                <td className="py-4 px-4 text-sm text-content-primary font-medium">
+                  {RIDER_LABEL[ticket.riderType] ?? ticket.riderType}
+                </td>
+                <td className="py-4 px-4 text-sm text-content-primary font-medium">
+                  {CATEGORY_LABEL[ticket.category] ?? ticket.category}
+                </td>
+                <td className="py-4 px-4 text-sm text-content-primary font-medium">{ticket.ridesCount}</td>
                 <td className="py-4 px-4 text-sm text-content-primary font-bold">
-                  {ticket.name}
+                  {ticket.currency} ${ticket.price.toFixed(2)}
                 </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                  {ticket.type}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                  {ticket.routeAccess}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-primary font-bold">
-                  {ticket.price}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                  {ticket.validity}
+                <td className="py-4 px-4 text-sm text-content-primary font-medium">
+                  {ticket.validityDays === 1
+                    ? "1 day"
+                    : ticket.validityDays === 365
+                      ? "1 year"
+                      : `${ticket.validityDays} days`}
                 </td>
                 <td className="py-4 px-4">
                   <span
                     className={cn(
-                      "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border",
-                      getStatusStyles(ticket.status),
+                      "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border",
+                      ticket.isActive
+                        ? "bg-green-50 text-green-700 border-green-100"
+                        : "bg-gray-100 text-gray-700 border-gray-200",
                     )}
                   >
-                    {ticket.status}
+                    {ticket.isActive ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td className="py-4 px-4 text-center">
                   <DropdownMenu>
                     <DropdownMenuTrigger className="p-2 hover:bg-surface-subtle rounded-lg transition-colors outline-none">
-                      <MoreHorizontal
-                        size={20}
-                        className="text-content-muted"
-                      />
+                      <MoreHorizontal size={20} className="text-content-muted" />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="rounded-xl border-surface-subtle shadow-xl p-1"
-                    >
-                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer">
-                        Edit Ticket
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer">
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer text-red-600">
-                        Delete
-                      </DropdownMenuItem>
+                    <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle shadow-xl p-1">
+                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer" onClick={() => setEditTicket(ticket)}>Edit Ticket</DropdownMenuItem>
+                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer text-red-600" onClick={() => setDeleteTicket(ticket)}>Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </td>
@@ -262,7 +242,15 @@ export default function TicketTypeList() {
         </table>
       </div>
 
-      <Pagination />
+      {!loading && filtered.length > 0 && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      )}
     </div>
   );
 }

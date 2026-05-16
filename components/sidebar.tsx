@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 const navItems = [
@@ -33,22 +32,16 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-
-  const handleLogout = () => {
-    document.cookie = "auth_token=; path=/; max-age=0";
-    router.push("/login");
-  };
 
   return (
     <>
       {/* Mobile Menu Button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-md border border-surface-subtle"
+        className="lg:hidden fixed top-3.5 sm:top-5 left-3 z-50 p-2.5 bg-white rounded-xl shadow-sm border border-surface-subtle hover:bg-brand-light hover:border-brand transition-all"
         onClick={() => setIsOpen(!isOpen)}
       >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
+        {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
       {/* Sidebar */}
@@ -87,6 +80,8 @@ export default function Sidebar() {
                 <Link
                   key={item.name}
                   href={item.href}
+                  prefetch={true}
+                  onClick={() => setIsOpen(false)}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all group",
                     isActive

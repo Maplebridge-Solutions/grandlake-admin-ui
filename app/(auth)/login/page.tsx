@@ -7,18 +7,35 @@ import { Input } from "@/components/ui/input";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { login } from "@/lib/api/auth";
+import { useAuthStore } from "@/lib/stores/authStore";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { setUser } = useAuthStore();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Set auth cookie (expires in 1 day)
-    document.cookie = "auth_token=1; path=/; max-age=86400; SameSite=Lax";
-    router.push("/");
+    setError("");
+    setIsLoading(true);
+    try {
+      const result = await login(email, password);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setUser({ user: result.user, profile: result.profile });
+      router.push("/");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -55,17 +72,17 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <label
                   className="text-sm font-semibold text-content-primary"
-                  htmlFor="username"
+                  htmlFor="email"
                 >
-                  Enter Username
+                  Enter Email
                 </label>
                 <Input
-                  id="username"
-                  type="text"
+                  id="email"
+                  type="email"
                   placeholder="Type here"
                   className="h-12 bg-white border-surface-subtle focus:ring-brand focus:border-brand"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
@@ -98,12 +115,19 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {error && (
+              <p className="text-sm text-status-error font-medium text-center">
+                {error}
+              </p>
+            )}
+
             <Button
               type="submit"
-              className="w-full h-12 bg-brand hover:bg-brand/90 text-white font-semibold rounded-full transition-all flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="w-full h-12 bg-brand hover:bg-brand/90 text-white font-semibold rounded-full transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <LogIn size={18} />
-              Login
+              {isLoading ? "Logging in..." : "Login"}
             </Button>
 
             <div className="text-center">

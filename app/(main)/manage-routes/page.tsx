@@ -6,19 +6,28 @@ import { Button } from "@/components/ui/button";
 import RouteList from "@/components/manage-routes/route-list";
 import RouteForm from "@/components/manage-routes/route-form";
 import ScheduleModal from "@/components/manage-routes/schedule-modal";
-import type { RouteViewState, Route } from "@/lib/types/routes";
+import type { RouteViewState, RouteData, ScheduleEntry } from "@/lib/types/routes";
 
 export default function ManageRoutesPage() {
   const [view, setView] = useState<RouteViewState>("list");
-  const [selectedRoute, setSelectedRoute] = useState<Route | undefined>(undefined);
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [selectedRoute, setSelectedRoute] = useState<RouteData | undefined>(undefined);
+  const [scheduleModal, setScheduleModal] = useState<{
+    open: boolean;
+    schedules: ScheduleEntry[];
+    routeName: string;
+  }>({ open: false, schedules: [], routeName: "" });
 
   const handleAddRoute = () => {
     setSelectedRoute(undefined);
     setView("add");
   };
 
-  const handleEditRoute = (route: Route) => {
+  const handleViewRoute = (route: RouteData) => {
+    setSelectedRoute(route);
+    setView("view");
+  };
+
+  const handleEditRoute = (route: RouteData) => {
     setSelectedRoute(route);
     setView("edit");
   };
@@ -30,16 +39,13 @@ export default function ManageRoutesPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       {view === "list" && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold text-content-primary">
+            <h1 className="text-2xl sm:text-3xl font-bold text-content-primary">
               Routes and Schedule Management
             </h1>
-            <p className="text-content-muted">
-              Manage trip routes and schedules here
-            </p>
+            <p className="text-content-muted">Manage trip routes and schedules here</p>
           </div>
           <Button
             onClick={handleAddRoute}
@@ -51,28 +57,32 @@ export default function ManageRoutesPage() {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="animate-in fade-in duration-500">
         {view === "list" && (
           <RouteList
             onAddRoute={handleAddRoute}
+            onViewRoute={handleViewRoute}
             onEditRoute={handleEditRoute}
           />
         )}
 
-        {(view === "add" || view === "edit") && (
+        {(view === "add" || view === "edit" || view === "view") && (
           <RouteForm
             onBack={handleBack}
             route={selectedRoute}
-            onViewSchedule={() => setIsScheduleModalOpen(true)}
+            readOnly={view === "view"}
+            onViewSchedule={(schedules, routeName) =>
+              setScheduleModal({ open: true, schedules, routeName })
+            }
           />
         )}
       </div>
 
-      {/* Modals */}
       <ScheduleModal
-        isOpen={isScheduleModalOpen}
-        onClose={() => setIsScheduleModalOpen(false)}
+        isOpen={scheduleModal.open}
+        onClose={() => setScheduleModal((prev) => ({ ...prev, open: false }))}
+        schedules={scheduleModal.schedules}
+        routeName={scheduleModal.routeName}
       />
     </div>
   );

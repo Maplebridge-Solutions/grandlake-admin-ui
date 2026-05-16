@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Pagination from "@/components/ui/pagination";
 import {
   Search,
@@ -9,196 +9,186 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
-  RefreshCw,
+  ChevronDown,
+  Download,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Image from "next/image";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+  getTransactionOrders,
+  getTransactionById,
+} from "@/lib/api/transactions";
+import { downloadReceipt } from "@/lib/utils/download-receipt";
+import type { TransactionOrderRecord } from "@/lib/types/tickets";
+import TransactionDetailModal from "./transaction-detail-modal";
 
-const transactions = [
-  {
-    id: "0938291",
-    timestamp: "6/21/18 09:00am",
-    route: "1 Main Stre... → 10 Civic Ce...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "ApplePay",
-    status: "Success",
-  },
-  {
-    id: "0938292",
-    timestamp: "7/11/19 10:00am",
-    route: "1000 Keas... → 10 Civic Ce...",
-    price: "CA$2.50",
-    ticket: "Youth 1 Ride",
-    method: "1541",
-    status: "Success",
-  },
-  {
-    id: "0938293",
-    timestamp: "8/21/15 01:00pm",
-    route: "6373 Upper... → 122 Bridge...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "0921",
-    status: "Pending",
-  },
-  {
-    id: "0938294",
-    timestamp: "8/16/13 08:00am",
-    route: "1000 Keas... → 10 Civic Ce...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "GooglePay",
-    status: "Refunding",
-  },
-  {
-    id: "0938295",
-    timestamp: "3/4/16 11:00am",
-    route: "1 Main Stre... → 10 Civic Ce...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "1541",
-    status: "Pending",
-  },
-  {
-    id: "0938296",
-    timestamp: "5/18/12 11:00am",
-    route: "1000 Keas... → 10 Civic Ce...",
-    price: "CA$2.50",
-    ticket: "Adult 1 Ride",
-    method: "1541",
-    status: "Failed",
-  },
-  {
-    id: "0938297",
-    timestamp: "2/11/12 10:00am",
-    route: "1000 Keas... → 10 Civic Ce...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "1141",
-    status: "Pending",
-  },
-  {
-    id: "0938298",
-    timestamp: "8/2/18 08:00am",
-    route: "6373 Upper... → 122 Bridge...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "1541",
-    status: "Success",
-  },
-  {
-    id: "0938299",
-    timestamp: "4/21/12 11:00am",
-    route: "6373 Upper... → 122 Bridge...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "1541",
-    status: "Failed",
-  },
-  {
-    id: "0938300",
-    timestamp: "12/10/13 09:00am",
-    route: "1 Main Stre... → 10 Civic Ce...",
-    price: "CA$3.00",
-    ticket: "Adult 1 Ride",
-    method: "1541",
-    status: "Success",
-  },
+const tabs = [
+  { id: "all", label: "All transactions" },
+  { id: "completed", label: "Completed only" },
+  { id: "pending", label: "Pending only" },
 ];
 
-export default function TransactionList() {
-  const [activeTab, setActiveTab] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+const PAYMENT_METHOD_OPTIONS = [
+  { id: "all", label: "All methods" },
+  { id: "WALLET", label: "Wallet" },
+  { id: "APPLE_PAY", label: "Apple Pay" },
+  { id: "CARD", label: "Card" },
+];
 
-  const tabs = [
-    { id: "all", label: "All transactions" },
-    { id: "completed", label: "Completed only" },
-    { id: "pending", label: "Pending only" },
-    { id: "failed", label: "Failed only" },
-  ];
+const TRANSACTION_TYPE_OPTIONS = [
+  { id: "all", label: "All types" },
+  { id: "PAYMENT", label: "Payment" },
+  { id: "TOPUP", label: "Top-up" },
+];
 
-  const getStatusStyles = (status: string) => {
-    switch (status) {
-      case "Success":
-        return "bg-green-50 text-green-700 border-green-100";
-      case "Pending":
-        return "bg-orange-50 text-orange-700 border-orange-100";
-      case "Failed":
-        return "bg-red-50 text-red-700 border-red-100";
-      case "Refunding":
-        return "bg-gray-100 text-gray-700 border-gray-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-100";
-    }
-  };
+const getStatusStyles = (isPaid: boolean) =>
+  isPaid
+    ? "bg-green-50 text-green-700 border-green-100"
+    : "bg-orange-50 text-orange-700 border-orange-100";
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "Success":
-        return <CheckCircle2 size={14} className="mr-1.5" />;
-      case "Pending":
-        return <Clock size={14} className="mr-1.5" />;
-      case "Failed":
-        return <XCircle size={14} className="mr-1.5" />;
-      case "Refunding":
-        return <RefreshCw size={14} className="mr-1.5" />;
-      default:
-        return null;
-    }
-  };
+const getStatusIcon = (isPaid: boolean) =>
+  isPaid ? (
+    <CheckCircle2 size={14} className="mr-1.5" />
+  ) : (
+    <Clock size={14} className="mr-1.5" />
+  );
 
-  const filteredTransactions = transactions.filter((tx) => {
-    if (activeTab === "all") return true;
-    if (activeTab === "completed") return tx.status === "Success";
-    if (activeTab === "pending") return tx.status === "Pending";
-    if (activeTab === "failed") return tx.status === "Failed";
-    return true;
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleString("en-CA", {
+    dateStyle: "medium",
+    timeStyle: "short",
   });
 
-  const isEmpty = filteredTransactions.length === 0;
+const formatAmount = (amount: number, currency: string) =>
+  `${currency} ${amount.toFixed(2)}`;
 
-  if (isEmpty) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
-        <div className="relative w-48 h-48 opacity-50">
-          <Image
-            src="https://picsum.photos/seed/empty-transaction/400/400"
-            alt="No data"
-            fill
-            className="object-contain"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-        <div className="text-center">
-          <h3 className="text-xl font-bold text-content-primary">
-            No Transaction Yet
-          </h3>
-          <p className="text-content-muted mt-2 max-w-xs">
-            Refresh the page to see user transactions, or wait and come back
-            later
-          </p>
-        </div>
-      </div>
-    );
-  }
+export default function TransactionList() {
+  const [transactions, setTransactions] = useState<TransactionOrderRecord[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Parameters<typeof getTransactionOrders>[0] = {
+        page,
+        limit: pageSize,
+      };
+      if (typeFilter !== "all") params.type = typeFilter;
+      if (paymentFilter !== "all") params.paymentMethod = paymentFilter;
+      const res = await getTransactionOrders(params);
+      setTransactions(Array.isArray(res.data) ? res.data : []);
+      setTotalPages(res.meta?.totalPages ?? 1);
+    } catch {
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, typeFilter, paymentFilter]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  const handleTabChange = (id: string) => {
+    setActiveTab(id);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
+
+  const handleDownloadReceipt = async (id: string) => {
+    setDownloadingId(id);
+    try {
+      const res = await getTransactionById(id);
+      downloadReceipt(res.data);
+    } catch {
+      // silently fail
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const q = searchQuery.toLowerCase();
+  const filtered = transactions.filter((tx) => {
+    const matchesTab =
+      activeTab === "all" ||
+      (activeTab === "completed" && tx.isPaid) ||
+      (activeTab === "pending" && !tx.isPaid);
+
+    const matchesSearch =
+      !q ||
+      tx._id.toLowerCase().includes(q) ||
+      tx.paymentMethod.toLowerCase().includes(q) ||
+      (tx.contactDetails?.firstName ?? "").toLowerCase().includes(q) ||
+      (tx.contactDetails?.lastName ?? "").toLowerCase().includes(q) ||
+      (() => {
+        const p = tx.items?.[0]?.product;
+        const name = typeof p === "object" ? p.name : (p ?? "");
+        return name.toLowerCase().includes(q);
+      })();
+
+    return matchesTab && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 p-1 bg-surface-page rounded-2xl w-fit border border-surface-subtle">
+      <TransactionDetailModal
+        transactionId={detailId}
+        onClose={() => setDetailId(null)}
+      />
+      {/* Tabs — dropdown on mobile, pills on desktop */}
+      <div className="lg:hidden">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="rounded-full px-5 h-10 border border-surface-subtle bg-white font-semibold flex items-center gap-2 w-full text-sm hover:border-brand hover:text-brand transition-all">
+            <Filter size={16} />
+            {tabs.find((t) => t.id === activeTab)?.label ?? "All transactions"}
+            <ChevronDown size={14} className="ml-auto" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="rounded-xl border-surface-subtle w-56"
+          >
+            {tabs.map((tab) => (
+              <DropdownMenuItem
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={cn(
+                  "rounded-lg cursor-pointer",
+                  activeTab === tab.id && "text-brand font-bold",
+                )}
+              >
+                {tab.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="hidden lg:flex flex-wrap gap-2 p-1 bg-surface-page rounded-2xl border border-surface-subtle w-fit">
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             className={cn(
               "px-4 py-2 rounded-xl text-sm font-bold transition-all",
               activeTab === tab.id
@@ -211,126 +201,248 @@ export default function TransactionList() {
         ))}
       </div>
 
-      {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row items-center gap-4">
+      {/* Search + Payment filter */}
+      <div className="flex flex-col sm:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
           <Search
             className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted"
             size={18}
           />
           <Input
-            placeholder="search for transactions by last card 4 digits, name of buyer or transaction id"
+            placeholder="Search by transaction ID, buyer name or payment method..."
             className="pl-12 h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
-        <Button
-          variant="outline"
-          className="h-12 px-6 rounded-2xl border-surface-subtle font-bold text-content-muted hover:text-brand hover:border-brand transition-all"
-        >
-          <Filter size={18} className="mr-2" />
-          Filter date
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={cn(
+              "flex items-center gap-2 h-12 px-5 rounded-2xl border text-sm font-semibold shrink-0 transition-all whitespace-nowrap",
+              paymentFilter !== "all"
+                ? "border-brand bg-brand-light text-brand"
+                : "border-surface-subtle bg-surface-page text-content-muted hover:border-brand hover:text-brand",
+            )}
+          >
+            <Filter size={15} />
+            {PAYMENT_METHOD_OPTIONS.find((o) => o.id === paymentFilter)
+              ?.label ?? "All methods"}
+            <ChevronDown size={14} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="rounded-xl border-surface-subtle shadow-xl p-1 w-40"
+          >
+            {PAYMENT_METHOD_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.id}
+                onClick={() => {
+                  setPaymentFilter(opt.id);
+                  setPage(1);
+                }}
+                className={cn(
+                  "rounded-lg cursor-pointer font-medium",
+                  paymentFilter === opt.id && "text-brand font-bold",
+                )}
+              >
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={cn(
+              "flex items-center gap-2 h-12 px-5 rounded-2xl border text-sm font-semibold shrink-0 transition-all whitespace-nowrap",
+              typeFilter !== "all"
+                ? "border-brand bg-brand-light text-brand"
+                : "border-surface-subtle bg-surface-page text-content-muted hover:border-brand hover:text-brand",
+            )}
+          >
+            <Filter size={15} />
+            {TRANSACTION_TYPE_OPTIONS.find((o) => o.id === typeFilter)?.label ??
+              "All types"}
+            <ChevronDown size={14} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="rounded-xl border-surface-subtle shadow-xl p-1 w-40"
+          >
+            {TRANSACTION_TYPE_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.id}
+                onClick={() => {
+                  setTypeFilter(opt.id);
+                  setPage(1);
+                }}
+                className={cn(
+                  "rounded-lg cursor-pointer font-medium",
+                  typeFilter === opt.id && "text-brand font-bold",
+                )}
+              >
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-surface-subtle">
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Timestamp
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Transaction ID
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Route Long Name
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Price
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Ticket Name
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Payment Method
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
-                Status
-              </th>
-              <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider text-center">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-subtle">
-            {filteredTransactions.map((tx) => (
-              <tr
-                key={tx.id}
-                className="group hover:bg-surface-page/50 transition-colors"
-              >
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                  {tx.timestamp}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-primary font-bold">
-                  {tx.id}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                  {tx.route}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-primary font-bold">
-                  {tx.price}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                  {tx.ticket}
-                </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
-                  {tx.method}
-                </td>
-                <td className="py-4 px-4">
-                  <span
-                    className={cn(
-                      "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border",
-                      getStatusStyles(tx.status),
-                    )}
-                  >
-                    {getStatusIcon(tx.status)}
-                    {tx.status}
-                  </span>
-                </td>
-                <td className="py-4 px-4 text-center">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="p-2 hover:bg-surface-subtle rounded-lg transition-colors outline-none">
-                      <MoreHorizontal
-                        size={20}
-                        className="text-content-muted"
-                      />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="rounded-xl border-surface-subtle shadow-xl p-1"
-                    >
-                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer">
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer">
-                        Download Receipt
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="rounded-lg font-medium cursor-pointer text-red-600">
-                        Issue Refund
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
+      <div className="bg-white border border-surface-subtle rounded-3xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto overscroll-x-contain touch-pan-x">
+          <table className="min-w-212.5 w-full text-left border-collapse">
+            <thead className="bg-surface-page">
+              <tr className="border-b border-surface-subtle">
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
+                  Timestamp
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
+                  Buyer Name
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
+                  Ticket
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
+                  Payment Method
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider text-center">
+                  Actions
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-surface-subtle">
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 8 }).map((__, j) => (
+                      <td key={j} className="py-4 px-4">
+                        <div className="h-4 bg-surface-subtle rounded animate-pulse" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="py-12 text-center text-content-muted text-sm"
+                  >
+                    No results found.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((tx) => (
+                  <tr
+                    key={tx._id}
+                    className="hover:bg-brand-light/20 border-b border-surface-subtle transition-colors"
+                  >
+                    <td className="py-4 px-4 text-sm text-content-primary font-medium">
+                      {formatDate(tx.createdAt)}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-content-primary font-medium">
+                      {tx.contactDetails?.firstName || tx.contactDetails?.lastName
+                        ? `${tx.contactDetails.firstName ?? ""} ${tx.contactDetails.lastName ?? ""}`.trim()
+                        : "—"}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-content-primary font-medium">
+                      {(() => {
+                        const p = tx.items?.[0]?.product;
+                        return typeof p === "object" ? p.name : (p ?? "—");
+                      })()}
+                    </td>
+                    <td className="py-4 px-4 text-sm font-bold text-content-primary">
+                      {formatAmount(tx.totalAmount, tx.currency)}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-content-primary font-medium">
+                      {tx.paymentMethod}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span
+                        className={cn(
+                          "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border",
+                          tx.transactionType === "TOPUP"
+                            ? "bg-blue-50 text-blue-700 border-blue-100"
+                            : "bg-purple-50 text-purple-700 border-purple-100",
+                        )}
+                      >
+                        {tx.transactionType === "TOPUP" ? "Top-up" : "Payment"}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span
+                        className={cn(
+                          "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border",
+                          getStatusStyles(tx.isPaid),
+                        )}
+                      >
+                        {getStatusIcon(tx.isPaid)}
+                        {tx.isPaid ? "Paid" : "Pending"}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="p-2 hover:bg-surface-subtle rounded-lg transition-colors outline-none">
+                          <MoreHorizontal
+                            size={20}
+                            className="text-content-muted"
+                          />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="rounded-xl border-surface-subtle shadow-xl p-1"
+                        >
+                          <DropdownMenuItem
+                            className="rounded-lg font-medium cursor-pointer"
+                            onClick={() => setDetailId(tx._id)}
+                          >
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="rounded-lg font-medium cursor-pointer"
+                            disabled={downloadingId === tx._id}
+                            onClick={() => handleDownloadReceipt(tx._id)}
+                          >
+                            {downloadingId === tx._id
+                              ? "Downloading..."
+                              : "Download Receipt"}
+                          </DropdownMenuItem>
+                          {/* <DropdownMenuItem className="rounded-lg font-medium cursor-pointer text-red-600">
+                            Issue Refund
+                          </DropdownMenuItem> */}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-      <Pagination />
+        {!loading && filtered.length > 0 && (
+          <div className="px-6 pb-4">
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

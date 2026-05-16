@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import BusMap from "@/components/bus-map";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,11 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  TrendingUp,
-  Bus,
-  ChevronDown,
-} from "lucide-react";
+import { TrendingUp, Bus, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -25,96 +21,55 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { BusOperation } from "@/lib/types/dashboard";
+import type { DashboardBusOperation } from "@/lib/types/dashboard";
+import { useAuthStore } from "@/lib/stores/authStore";
+import { getDashboardOverview } from "@/lib/api/dashboard";
+import type { DashboardOverviewParams } from "@/lib/api/dashboard";
 
-const summaryStats = [
-  {
-    title: "Ridership Summary",
-    value: "2,450",
-    change: "+8%",
-    isPositive: true,
-    icon: Bus,
-  },
-  {
-    title: "Ticket Sales",
-    value: "10,004",
-    change: "-4%",
-    isPositive: false,
-    icon: TrendingUp,
-  },
-  {
-    title: "Ticket Revenues",
-    value: "CA$140,000,000.00",
-    change: "-2%",
-    isPositive: false,
-    icon: TrendingUp,
-  },
-  {
-    title: "Ticket Validations",
-    value: "13,000",
-    change: "+12%",
-    isPositive: true,
-    icon: TrendingUp,
-  },
+type TimeFilter = "Today" | "This week" | "This month" | "This year";
+
+const TIME_FILTER_OPTIONS: TimeFilter[] = ["Today", "This week", "This month", "This year"];
+
+function toDateString(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
+function buildOverviewParams(filter: TimeFilter): DashboardOverviewParams {
+  const now = new Date();
+  if (filter === "Today") {
+    const d = toDateString(now);
+    return { period: "today", startDate: d, endDate: d };
+  }
+  if (filter === "This week") {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { period: "week", startDate: toDateString(start), endDate: toDateString(end) };
+  }
+  if (filter === "This month") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { period: "month", startDate: toDateString(start), endDate: toDateString(end) };
+  }
+  // This year
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end = new Date(now.getFullYear(), 11, 31);
+  return { period: "year", startDate: toDateString(start), endDate: toDateString(end) };
+}
+
+const tableHeaders = [
+  "Fleet Number",
+  "Route Long Name",
+  "GPS",
+  "Delay",
+  "Status",
 ];
 
-const busOperations = [
-  {
-    fleet: "150",
-    route: "1 Main Stre... → 10 Civic Co...",
-    gps: "Online",
-    delay: "On time",
-    status: "Active",
-  },
-  {
-    fleet: "24",
-    route: "1 Main Stre... → 10 Civic Co...",
-    gps: "Online",
-    delay: "On time",
-    status: "Active",
-  },
-  {
-    fleet: "19",
-    route: "6373 Uppe... → 122 Bridge...",
-    gps: "Online",
-    delay: "2m late",
-    status: "Inactive",
-  },
-  {
-    fleet: "150A",
-    route: "1100 Pleas... → Health Co...",
-    gps: "Online",
-    delay: "On time",
-    status: "Active",
-  },
-  {
-    fleet: "B80",
-    route: "1 Main Stre... → 10 Civic Co...",
-    gps: "Offline 2m",
-    delay: "On time",
-    status: "Inactive",
-  },
-  {
-    fleet: "124",
-    route: "6373 Uppe... → 122 Bridge...",
-    gps: "Online",
-    delay: "On time",
-    status: "Active",
-  },
-  {
-    fleet: "30",
-    route: "1100 Pleas... → Health Co...",
-    gps: "Online",
-    delay: "2m early",
-    status: "Inactive",
-  },
-  {
-    fleet: "34",
-    route: "1 Main Stre... → 10 Civic Co...",
-    gps: "Offline 5m",
-    delay: "On time",
-    status: "Active",
-  },
+const filterTabs = [
+  { label: "All buses", value: "all" },
+  { label: "Active only", value: "active" },
+  { label: "Inactive only", value: "inactive" },
 ];
 
 const alerts = [
@@ -130,32 +85,95 @@ const alerts = [
   { message: "Bus T-5 is 5 minutes early", time: "2m ago", type: "warning" },
 ];
 
-const tableHeaders = [
-  "Fleet Number",
-  "Route Long Name",
-  "GPS",
-  "Delay",
-  "Status",
-];
-const filterTabs = [
-  { label: "All buses", value: "all" },
-  { label: "Active only", value: "active" },
-  { label: "Inactive only", value: "inactive" },
-];
+function formatCurrency(amount: number, currency: string) {
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-CA").format(value);
+}
 
 export default function DashboardPage() {
-  const [selectedBus, setSelectedBus] = useState<BusOperation | null>(null);
+  const [selectedBus, setSelectedBus] = useState<DashboardBusOperation | null>(
+    null,
+  );
   const [activeFilter, setActiveFilter] = useState("all");
-  const [timeFilter, setTimeFilter] = useState("This week");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("This week");
+
+  const [overview, setOverview] = useState<{
+    totalRiders: number;
+    totalSales: number;
+    totalAmount: number;
+    currency: string;
+    totalValidations: number;
+    latestBusOperations: DashboardBusOperation[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const user = useAuthStore((state) => state.user);
+
+  useEffect(() => {
+    async function fetchOverview() {
+      setLoading(true);
+      try {
+        const res = await getDashboardOverview(buildOverviewParams(timeFilter));
+        if (res.success) {
+          const d = res.data;
+          setOverview({
+            totalRiders: d.ridershipSummary.totalRiders,
+            totalSales: d.ticketSales.totalSales,
+            totalAmount: d.ticketRevenue.totalAmount,
+            currency: d.ticketRevenue.currency,
+            totalValidations: d.ticketValidations.totalValidations,
+            latestBusOperations: d.latestBusOperations,
+          });
+        }
+      } catch {
+        // keep stale data on error
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchOverview();
+  }, [timeFilter]);
+
+  const summaryStats = overview
+    ? [
+        {
+          title: "Ridership Summary",
+          value: formatNumber(overview.totalRiders),
+          icon: Bus,
+        },
+        {
+          title: "Ticket Sales",
+          value: formatNumber(overview.totalSales),
+          icon: TrendingUp,
+        },
+        {
+          title: "Ticket Revenues",
+          value: formatCurrency(overview.totalAmount, overview.currency),
+          icon: TrendingUp,
+        },
+        {
+          title: "Ticket Validations",
+          value: formatNumber(overview.totalValidations),
+          icon: TrendingUp,
+        },
+      ]
+    : null;
 
   const filteredBuses = useMemo(() => {
-    if (activeFilter === "all") return busOperations;
+    const buses = overview?.latestBusOperations ?? [];
     if (activeFilter === "active")
-      return busOperations.filter((b) => b.status === "Active");
+      return buses.filter((b) => b.status === "Active");
     if (activeFilter === "inactive")
-      return busOperations.filter((b) => b.status === "Inactive");
-    return busOperations;
-  }, [activeFilter]);
+      return buses.filter((b) => b.status === "Inactive");
+    return buses;
+  }, [activeFilter, overview]);
 
   return (
     <div className="space-y-8 relative">
@@ -169,8 +187,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-content-primary">
-            Welcome, Ryker
+          <h1 className="text-2xl sm:text-3xl font-bold text-content-primary">
+            Welcome, {user?.profile?.firstName ?? "Admin"}
           </h1>
           <p className="text-content-secondary mt-1">
             Track metrics on your dashboard
@@ -187,17 +205,15 @@ export default function DashboardPage() {
               align="end"
               className="rounded-2xl border-surface-subtle"
             >
-              {["Today", "This week", "This month", "This year"].map(
-                (filter) => (
-                  <DropdownMenuItem
-                    key={filter}
-                    onClick={() => setTimeFilter(filter)}
-                    className="rounded-xl cursor-pointer"
-                  >
-                    {filter}
-                  </DropdownMenuItem>
-                ),
-              )}
+              {TIME_FILTER_OPTIONS.map((filter) => (
+                <DropdownMenuItem
+                  key={filter}
+                  onClick={() => setTimeFilter(filter as TimeFilter)}
+                  className="rounded-xl cursor-pointer"
+                >
+                  {filter}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -205,41 +221,43 @@ export default function DashboardPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {summaryStats.map((stat) => (
-          <Card
-            key={stat.title}
-            className="bg-white border-surface-subtle rounded-3xl shadow-sm hover:shadow-md transition-shadow"
-          >
-            <CardContent className="p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-surface-page border border-surface-subtle flex items-center justify-center text-content-primary">
-                  <stat.icon size={20} />
-                </div>
-                <span className="text-sm font-semibold text-content-primary">
-                  {stat.title}
-                </span>
-              </div>
-              <div className="space-y-1">
-                <div className="text-2xl font-bold text-content-primary truncate">
-                  {stat.value}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-bold border-none",
-                      stat.isPositive
-                        ? "bg-brand-pale text-brand"
-                        : "bg-status-error-bg text-status-error",
-                    )}
-                  >
-                    {stat.change}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {loading || !summaryStats
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Card
+                key={i}
+                className="bg-white border-surface-subtle rounded-3xl shadow-sm"
+              >
+                <CardContent className="p-6 space-y-4">
+                  <div className="h-10 w-10 rounded-full bg-surface-page border border-surface-subtle animate-pulse" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 bg-surface-subtle rounded animate-pulse" />
+                    <div className="h-7 w-24 bg-surface-subtle rounded animate-pulse" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          : summaryStats.map((stat) => (
+              <Card
+                key={stat.title}
+                className="bg-white border-surface-subtle rounded-3xl shadow-sm hover:shadow-md transition-shadow"
+              >
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-surface-page border border-surface-subtle flex items-center justify-center text-content-primary">
+                      <stat.icon size={20} />
+                    </div>
+                    <span className="text-sm font-semibold text-content-primary">
+                      {stat.title}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-2xl font-bold text-content-primary truncate">
+                      {stat.value}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
       </div>
 
       {/* Main Grid */}
@@ -248,7 +266,7 @@ export default function DashboardPage() {
         <div className="xl:col-span-3 space-y-6">
           <Card className="bg-white border-surface-subtle rounded-3xl shadow-sm overflow-hidden">
             <CardContent className="p-4 sm:p-8">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                 <div>
                   <h2 className="text-xl font-bold text-content-primary">
                     Latest Bus Operations
@@ -257,7 +275,7 @@ export default function DashboardPage() {
                     Tap on an item to view real time location and more
                   </p>
                 </div>
-                <div className="flex items-center gap-2 p-1 bg-surface-page border border-surface-subtle rounded-full flex-wrap">
+                <div className="flex items-center gap-1 p-1 bg-surface-page border border-surface-subtle rounded-2xl flex-wrap w-auto">
                   {filterTabs.map((tab) => (
                     <button
                       key={tab.value}
@@ -281,8 +299,8 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-surface-subtle overflow-x-auto">
-                <Table>
+              <div className="rounded-2xl border border-surface-subtle overflow-x-auto overscroll-x-contain touch-pan-x">
+                <Table className="min-w-[500px]">
                   <TableHeader className="bg-surface-page">
                     <TableRow className="hover:bg-transparent border-b border-surface-subtle">
                       {tableHeaders.map((header) => (
@@ -296,58 +314,82 @@ export default function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredBuses.map((bus, i) => (
-                      <TableRow
-                        key={i}
-                        className="hover:bg-brand-light/50 border-b border-surface-subtle transition-colors cursor-pointer"
-                        onClick={() => setSelectedBus(bus)}
-                      >
-                        <TableCell className="font-medium text-content-secondary py-4">
-                          {bus.fleet}
-                        </TableCell>
-                        <TableCell className="text-content-secondary py-4">
-                          {bus.route}
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "rounded-md px-2 py-0.5 text-[10px] font-bold border-none",
-                              bus.gps.startsWith("Online")
-                                ? "bg-status-info-bg text-brand"
-                                : "bg-status-error-bg text-status-error",
-                            )}
-                          >
-                            {bus.gps}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <span
-                            className={cn(
-                              "text-sm font-medium",
-                              bus.delay === "On time"
-                                ? "text-content-secondary"
-                                : "text-status-error",
-                            )}
-                          >
-                            {bus.delay}
-                          </span>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "rounded-md px-2 py-0.5 text-[10px] font-bold border-none",
-                              bus.status === "Active"
-                                ? "bg-brand-pale text-brand"
-                                : "bg-surface-subtle text-content-muted",
-                            )}
-                          >
-                            {bus.status}
-                          </Badge>
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow
+                          key={i}
+                          className="border-b border-surface-subtle"
+                        >
+                          {Array.from({ length: 5 }).map((__, j) => (
+                            <TableCell key={j} className="py-4">
+                              <div className="h-4 bg-surface-subtle rounded animate-pulse w-20" />
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : filteredBuses.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="py-8 text-center text-content-muted"
+                        >
+                          No bus operations found.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      filteredBuses.map((bus, i) => (
+                        <TableRow
+                          key={i}
+                          className="hover:bg-brand-light/50 border-b border-surface-subtle transition-colors cursor-pointer"
+                          onClick={() => setSelectedBus(bus)}
+                        >
+                          <TableCell className="font-medium text-content-secondary py-4">
+                            {bus.fleetNumber}
+                          </TableCell>
+                          <TableCell className="text-content-secondary py-4">
+                            {bus.routeLongName}
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "rounded-lg px-3 py-1 text-xs font-bold border-none",
+                                bus.gpsStatus === "Online"
+                                  ? "bg-status-info-bg text-brand"
+                                  : "bg-status-error-bg text-status-error",
+                              )}
+                            >
+                              {bus.gpsStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <span
+                              className={cn(
+                                "text-sm font-medium",
+                                bus.delay === "On time"
+                                  ? "text-content-secondary"
+                                  : "text-status-error",
+                              )}
+                            >
+                              {bus.delay}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "rounded-lg px-3 py-1 text-xs font-bold border-none",
+                                bus.status === "Active"
+                                  ? "bg-brand-pale text-brand"
+                                  : "bg-surface-subtle text-content-muted",
+                              )}
+                            >
+                              {bus.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -380,7 +422,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-content-primary leading-tight">
                     {alert.message}
                   </p>
-                  <span className="text-[10px] font-semibold text-content-muted mt-2">
+                  <span className="text-xs font-semibold text-content-muted mt-2">
                     {alert.time}
                   </span>
                 </div>

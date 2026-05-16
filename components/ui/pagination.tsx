@@ -15,7 +15,7 @@ interface PaginationProps {
 export default function Pagination({
   currentPage = 1,
   totalPages = 12,
-  pageSize = 10,
+  pageSize = 50,
   onPageChange,
   onPageSizeChange,
   className,
@@ -36,10 +36,11 @@ export default function Pagination({
   return (
     <div
       className={cn(
-        "flex items-center justify-between pt-4 border-t border-surface-subtle",
+        "flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-surface-subtle",
         className,
       )}
     >
+      {/* Page size */}
       <div className="flex items-center gap-2">
         <span className="text-sm text-content-muted">Show per page</span>
         <select
@@ -53,7 +54,8 @@ export default function Pagination({
         </select>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* Page numbers */}
+      <div className="flex items-center gap-1.5">
         <Button
           variant="outline"
           size="icon"
@@ -66,7 +68,7 @@ export default function Pagination({
 
         {getPages().map((page, i) =>
           page === "..." ? (
-            <span key={`ellipsis-${i}`} className="text-content-muted mx-1">
+            <span key={`ellipsis-${i}`} className="text-content-muted px-1 text-sm">
               ...
             </span>
           ) : (

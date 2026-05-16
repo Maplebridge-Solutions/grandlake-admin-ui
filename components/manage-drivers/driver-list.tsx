@@ -1,17 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Search,
   Filter,
   MoreHorizontal,
   PenLine,
   Trash2,
-  AlertCircle,
-  Info,
   User,
+  ChevronDown,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import Pagination from "@/components/ui/pagination";
@@ -32,192 +30,185 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-import type { Driver, DriverListProps } from "@/lib/types/drivers";
+import type { DriverData, DriverListProps } from "@/lib/types/drivers";
+import { getAllDrivers, deleteDriver } from "@/lib/api/drivers";
+import { toast } from "sonner";
 
-const initialDrivers: Driver[] = [
+const TABLE_HEADS = [
+  { label: "Image", className: "font-bold text-content-primary py-4 pl-8" },
+  { label: "Staff ID", className: "font-bold text-content-primary py-4" },
+  { label: "Full Name", className: "font-bold text-content-primary py-4" },
+  { label: "Email", className: "font-bold text-content-primary py-4" },
+  { label: "Route ID", className: "font-bold text-content-primary py-4" },
+  { label: "Status", className: "font-bold text-content-primary py-4" },
   {
-    id: "1",
-    staffId: "124309",
-    name: "Mandela Magodo",
-    timeLeftToBreak: "12h left",
-    breakProgress: 40,
-    activeRouteId: "Route_6",
-    complianceAlert: "Action needed",
-    status: "Active",
-    image: "https://picsum.photos/seed/driver1/100/100",
-  },
-  {
-    id: "2",
-    staffId: "224115",
-    name: "Savannah Nguyen",
-    timeLeftToBreak: "12h left",
-    breakProgress: 40,
-    activeRouteId: "Route_91",
-    complianceAlert: "Up to date",
-    status: "Active",
-    image: "https://picsum.photos/seed/driver2/100/100",
-  },
-  {
-    id: "3",
-    staffId: "098321",
-    name: "Bessie Cooper",
-    timeLeftToBreak: "2h left",
-    breakProgress: 80,
-    activeRouteId: "Route_63",
-    complianceAlert: "Action needed",
-    status: "Inactive",
-    image: "https://picsum.photos/seed/driver3/100/100",
-  },
-  {
-    id: "4",
-    staffId: "230109",
-    name: "Arlene McCoy",
-    timeLeftToBreak: "12h left",
-    breakProgress: 40,
-    activeRouteId: "Route_9",
-    complianceAlert: "Up to date",
-    status: "Active",
-    image: "https://picsum.photos/seed/driver4/100/100",
-  },
-  {
-    id: "5",
-    staffId: "583056",
-    name: "Cameron Williamson",
-    timeLeftToBreak: "12h left",
-    breakProgress: 40,
-    activeRouteId: "Route_17",
-    complianceAlert: "Up to date",
-    status: "Active",
-    image: "https://picsum.photos/seed/driver5/100/100",
-  },
-  {
-    id: "6",
-    staffId: "948191",
-    name: "Leslie Alexander",
-    timeLeftToBreak: "0h left",
-    breakProgress: 100,
-    activeRouteId: "Route_92",
-    complianceAlert: "Up to date",
-    status: "Inactive",
-    image: "https://picsum.photos/seed/driver6/100/100",
-  },
-  {
-    id: "7",
-    staffId: "038321",
-    name: "Ralph Edwards",
-    timeLeftToBreak: "12h left",
-    breakProgress: 40,
-    activeRouteId: "Route_19",
-    complianceAlert: "Up to date",
-    status: "Active",
-    image: "https://picsum.photos/seed/driver7/100/100",
-  },
-  {
-    id: "8",
-    staffId: "847301",
-    name: "Marvin McKinney",
-    timeLeftToBreak: "2h left",
-    breakProgress: 80,
-    activeRouteId: "Route_54",
-    complianceAlert: "Up to date",
-    status: "Active",
-    image: "https://picsum.photos/seed/driver8/100/100",
-  },
-  {
-    id: "9",
-    staffId: "018390",
-    name: "Robert Fox",
-    timeLeftToBreak: "12h left",
-    breakProgress: 40,
-    activeRouteId: "Route_5",
-    complianceAlert: "Up to date",
-    status: "Inactive",
-    image: "https://picsum.photos/seed/driver9/100/100",
-  },
-  {
-    id: "10",
-    staffId: "637233",
-    name: "Jerome Bell",
-    timeLeftToBreak: "12h left",
-    breakProgress: 40,
-    activeRouteId: "Route_83",
-    complianceAlert: "Up to date",
-    status: "Active",
-    image: "https://picsum.photos/seed/driver10/100/100",
+    label: "Actions",
+    className: "font-bold text-content-primary py-4 pr-8 text-right",
   },
 ];
 
+const FILTER_TABS = [
+  { label: "All drivers", value: "all" },
+  { label: "Drivers only", value: "driver" },
+  { label: "Non-drivers", value: "non-driver" },
+];
+
+type DatePreset = "all" | "today" | "week" | "month" | "year";
+
+const DATE_PRESETS: { id: DatePreset; label: string }[] = [
+  { id: "all", label: "All time" },
+  { id: "today", label: "Today" },
+  { id: "week", label: "This week" },
+  { id: "month", label: "This month" },
+  { id: "year", label: "This year" },
+];
+
+function toDateString(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
+function getDateRange(preset: DatePreset): { startDate?: string; endDate?: string } {
+  const now = new Date();
+  if (preset === "all") return {};
+  if (preset === "today") {
+    const d = toDateString(now);
+    return { startDate: d, endDate: d };
+  }
+  if (preset === "week") {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { startDate: toDateString(start), endDate: toDateString(end) };
+  }
+  if (preset === "month") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { startDate: toDateString(start), endDate: toDateString(end) };
+  }
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end = new Date(now.getFullYear(), 11, 31);
+  return { startDate: toDateString(start), endDate: toDateString(end) };
+}
 
 export default function DriverList({
   onViewProfile,
   onEditDriver,
 }: DriverListProps) {
-  const drivers = initialDrivers;
+  const [drivers, setDrivers] = useState<DriverData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const filteredDrivers = drivers.filter((driver) => {
-    const matchesSearch =
-      driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      driver.staffId.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchInput), 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
-    if (activeFilter === "all") return matchesSearch;
-    if (activeFilter === "active")
-      return matchesSearch && driver.status === "Active";
-    if (activeFilter === "inactive")
-      return matchesSearch && driver.status === "Inactive";
-    if (activeFilter === "incomplete")
-      return matchesSearch && driver.status === "Incomplete";
+  const fetchDrivers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Parameters<typeof getAllDrivers>[0] = {
+        page,
+        limit: pageSize,
+      };
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (activeFilter === "driver") params.isDriver = true;
+      if (activeFilter === "non-driver") params.isDriver = false;
+      const dateRange = getDateRange(datePreset);
+      if (dateRange.startDate) params.startDate = dateRange.startDate;
+      if (dateRange.endDate) params.endDate = dateRange.endDate;
+      const res = await getAllDrivers(params);
+      if (res.success) {
+        setDrivers(Array.isArray(res.data) ? res.data : []);
+        if (res.meta) setTotalPages(res.meta.totalPages);
+      }
+    } catch {
+      // keep empty
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, debouncedSearch, activeFilter, datePreset]);
 
-    return matchesSearch;
-  });
+  useEffect(() => {
+    fetchDrivers();
+  }, [fetchDrivers]);
 
-  const isEmpty = drivers.length === 0;
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, activeFilter, datePreset]);
 
-  if (isEmpty) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
-        <div className="relative w-48 h-48 opacity-50">
-          <Image
-            src="https://picsum.photos/seed/empty-driver/400/400"
-            alt="No data"
-            fill
-            className="object-contain"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-        <div className="text-center">
-          <h3 className="text-xl font-bold text-content-primary">
-            No Driver/Staff Added Yet
-          </h3>
-          <p className="text-content-muted mt-2">
-            You can see them here after you&apos;ve added them. You can add
-          </p>
-          <p className="text-content-muted">
-            drivers/staff from button in top right
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const handleFilterChange = (value: string) => {
+    setActiveFilter(value);
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteDriver(id);
+      setDrivers((prev) => prev.filter((d) => d._id !== id));
+      toast.success("Driver deleted successfully.");
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete driver.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* Filters & Search */}
       <div className="flex flex-col space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="lg:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="rounded-full px-5 h-10 border border-surface-subtle bg-white font-semibold flex items-center gap-2 w-full sm:w-auto text-sm hover:border-brand hover:text-brand transition-all">
+              <Filter size={16} />
+              {FILTER_TABS.find((t) => t.value === activeFilter)?.label ??
+                "All drivers"}
+              <ChevronDown size={14} className="ml-auto" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="rounded-xl border-surface-subtle w-52"
+            >
+              {FILTER_TABS.map((tab) => (
+                <DropdownMenuItem
+                  key={tab.value}
+                  onClick={() => handleFilterChange(tab.value)}
+                  className={cn(
+                    "rounded-lg cursor-pointer",
+                    activeFilter === tab.value && "text-brand font-bold",
+                  )}
+                >
+                  {tab.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="hidden lg:block">
           <Tabs
             value={activeFilter}
-            onValueChange={setActiveFilter}
+            onValueChange={handleFilterChange}
             className="w-auto"
           >
-            <TabsList className="bg-transparent border-none p-0 h-auto gap-2 flex-wrap">
-              {[
-                { label: "All drivers", value: "all" },
-                { label: "Active only", value: "active" },
-                { label: "Inactive only", value: "inactive" },
-                { label: "Incomplete registration", value: "incomplete" },
-              ].map((tab) => (
+            <TabsList className="bg-transparent border-none p-0 h-auto gap-2 flex flex-wrap">
+              {FILTER_TABS.map((tab) => (
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
@@ -230,180 +221,196 @@ export default function DriverList({
           </Tabs>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="relative flex-1 w-full">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
             <Search
               className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted"
               size={18}
             />
             <Input
-              placeholder="search for drivers by name or staff id here"
+              placeholder="Search by name, staff ID or email..."
               className="h-12 pl-12 bg-white border-surface-subtle rounded-full focus:ring-brand focus:border-brand w-full"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
             />
           </div>
-          <Button
-            variant="outline"
-            className="rounded-full px-6 h-12 border-surface-subtle font-semibold flex items-center gap-2 shrink-0"
-          >
-            <Filter size={18} />
-            This week
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger className={cn(
+              "flex items-center gap-2 h-12 px-5 rounded-2xl border text-sm font-semibold shrink-0 transition-all whitespace-nowrap",
+              datePreset !== "all"
+                ? "border-brand bg-brand-light text-brand"
+                : "border-surface-subtle bg-white text-content-muted hover:border-brand hover:text-brand",
+            )}>
+              <Filter size={15} />
+              {DATE_PRESETS.find((p) => p.id === datePreset)?.label}
+              <ChevronDown size={14} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle shadow-xl p-1">
+              {DATE_PRESETS.map((preset) => (
+                <DropdownMenuItem
+                  key={preset.id}
+                  onClick={() => { setDatePreset(preset.id); setPage(1); }}
+                  className={cn("rounded-lg cursor-pointer font-medium", datePreset === preset.id && "text-brand font-bold")}
+                >
+                  {preset.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* Table */}
       <div className="bg-white border border-surface-subtle rounded-3xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <Table>
+        <div className="overflow-x-auto overscroll-x-contain touch-pan-x">
+          <Table className="min-w-[700px]">
             <TableHeader className="bg-surface-page">
               <TableRow className="hover:bg-transparent border-b border-surface-subtle">
-                <TableHead className="font-bold text-content-primary py-4 pl-8">
-                  Image
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Staff ID
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Driver Full Name
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Time Left to Break
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Active Route ID
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Compliance Alert
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Status
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4 pr-8 text-right">
-                  Actions
-                </TableHead>
+                {TABLE_HEADS.map((h) => (
+                  <TableHead key={h.label} className={h.className}>
+                    {h.label}
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredDrivers.map((driver, i) => (
-                <TableRow
-                  key={i}
-                  className="hover:bg-brand-light/20 border-b border-surface-subtle transition-colors cursor-pointer"
-                  onClick={() => onViewProfile(driver)}
-                >
-                  <TableCell className="py-4 pl-8">
-                    <div className="relative w-10 h-10 rounded-full overflow-hidden border border-surface-subtle">
-                      <Image
-                        src={driver.image}
-                        alt={driver.name}
-                        fill
-                        className="object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-content-secondary py-4">
-                    {driver.staffId}
-                  </TableCell>
-                  <TableCell className="font-medium text-content-secondary py-4">
-                    {driver.name}
-                  </TableCell>
-                  <TableCell className="py-4">
-                    <div className="flex items-center gap-3 w-32">
-                      <div className="flex-1 h-2 bg-surface-subtle rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full",
-                            driver.breakProgress > 70
-                              ? "bg-status-error"
-                              : "bg-brand",
-                          )}
-                          style={{ width: `${driver.breakProgress}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-content-muted whitespace-nowrap">
-                        {driver.timeLeftToBreak}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-content-secondary py-4">
-                    {driver.activeRouteId}
-                  </TableCell>
-                  <TableCell className="py-4">
-                    <div className="flex items-center gap-2">
-                      {driver.complianceAlert === "Action needed" ? (
-                        <div className="flex items-center gap-1.5 text-status-error">
-                          <AlertCircle size={16} />
-                          <span className="text-xs font-bold">
-                            Action needed
-                          </span>
-                          <Info size={14} className="text-content-muted" />
-                        </div>
-                      ) : (
-                        <span className="text-xs font-medium text-content-secondary">
-                          Up to date
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-4">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "rounded-md px-2 py-0.5 text-[10px] font-bold border-none",
-                        driver.status === "Active"
-                          ? "bg-brand-pale text-brand"
-                          : driver.status === "Inactive"
-                            ? "bg-surface-subtle text-content-muted"
-                            : "bg-status-warning-bg text-status-warning",
-                      )}
+              {loading
+                ? Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow
+                      key={i}
+                      className="border-b border-surface-subtle"
                     >
-                      {driver.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell
-                    className="py-4 pr-8 text-right"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="h-8 w-8 rounded-full hover:bg-brand-light hover:text-brand inline-flex items-center justify-center transition-colors">
-                        <MoreHorizontal size={18} />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="rounded-xl border-surface-subtle"
+                      {Array.from({ length: 7 }).map((__, j) => (
+                        <TableCell key={j} className="py-4">
+                          <div className="h-4 bg-surface-subtle rounded animate-pulse" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                : drivers.length === 0
+                ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-16 text-center">
+                        <h3 className="text-lg font-bold text-content-primary">No Driver/Staff Added Yet</h3>
+                        <p className="text-content-muted mt-1 text-sm">You can see them here after you&apos;ve added them.</p>
+                      </TableCell>
+                    </TableRow>
+                  )
+                : drivers.map((driver) => (
+                    <TableRow
+                      key={driver._id}
+                      className="hover:bg-brand-light/20 border-b border-surface-subtle transition-colors cursor-pointer"
+                      onClick={() => onViewProfile(driver)}
+                    >
+                      <TableCell className="py-4 pl-8">
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden border border-surface-subtle bg-surface-page flex items-center justify-center">
+                          {driver.driverDetails?.pictureUrl ? (
+                            <Image
+                              src={driver.driverDetails.pictureUrl}
+                              alt={`${driver.firstName} ${driver.lastName}`}
+                              fill
+                              className="object-cover"
+                              referrerPolicy="no-referrer"
+                              unoptimized
+                            />
+                          ) : (
+                            <User size={18} className="text-content-muted" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-content-primary py-4">
+                        {driver.driverDetails?.staffId ?? "—"}
+                      </TableCell>
+                      <TableCell className="font-medium text-content-primary py-4">
+                        {driver.firstName} {driver.lastName}
+                      </TableCell>
+                      <TableCell className="text-content-primary py-4 text-sm">
+                        {driver.user?.email ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-content-primary py-4">
+                        {(driver.driverDetails?.routeId &&
+                          driver.driverDetails?.routeId) ??
+                          "—"}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-lg px-3 py-1 text-xs font-bold border-none capitalize",
+                            driver.isDriver
+                              ? "bg-brand-pale text-brand"
+                              : "bg-surface-subtle text-content-muted",
+                          )}
+                        >
+                          {driver.isDriver
+                            ? "Driver"
+                            : (driver.user?.roles?.[0]?.replace(/_/g, " ") ??
+                              "Non-driver")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell
+                        className="py-4 pr-8 text-right"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <DropdownMenuItem
-                          onClick={() => onViewProfile(driver)}
-                          className="cursor-pointer rounded-lg gap-2"
-                        >
-                          <User size={16} />
-                          View Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => onEditDriver(driver)}
-                          className="cursor-pointer rounded-lg gap-2"
-                        >
-                          <PenLine size={16} />
-                          Edit Driver
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer rounded-lg gap-2 text-status-error focus:text-status-error">
-                          <Trash2 size={16} />
-                          Delete Driver
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="h-8 w-8 rounded-full hover:bg-brand-light hover:text-brand inline-flex items-center justify-center transition-colors">
+                            <MoreHorizontal size={18} />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="rounded-xl border-surface-subtle w-40"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => onViewProfile(driver)}
+                              className="cursor-pointer rounded-lg gap-2"
+                            >
+                              <User size={16} />
+                              View Profile
+                            </DropdownMenuItem>
+                            {(driver.isDriver ||
+                              driver.user?.roles?.includes("admin")) && (
+                              <DropdownMenuItem
+                                onClick={() => onEditDriver(driver)}
+                                className="cursor-pointer rounded-lg gap-2"
+                              >
+                                <PenLine size={16} />
+                                {driver.user?.roles?.includes("admin")
+                                  ? "Edit Admin"
+                                  : "Edit Driver"}
+                              </DropdownMenuItem>
+                            )}
+                            {!driver.user?.roles?.includes("admin") && (
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(driver._id)}
+                                disabled={deletingId === driver._id}
+                                className="cursor-pointer rounded-lg gap-2 text-status-error focus:text-status-error"
+                              >
+                                <Trash2 size={16} />
+                                {deletingId === driver._id
+                                  ? "Deleting..."
+                                  : "Delete Driver"}
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
             </TableBody>
           </Table>
         </div>
 
-        <div className="px-8 pb-6">
-          <Pagination />
-        </div>
+        {!loading && drivers.length > 0 && (
+          <div className="px-8 pb-6">
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import {
   MoreHorizontal,
   Plus,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,9 +117,9 @@ export default function PassManagement({ onIssueNew }: PassManagementProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-content-primary tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-bold text-content-primary tracking-tight">
             Manage Passes
           </h2>
           <p className="text-content-muted mt-1">
@@ -126,7 +127,7 @@ export default function PassManagement({ onIssueNew }: PassManagementProps) {
           </p>
         </div>
         <Button
-          className="bg-brand hover:bg-brand/90 text-white rounded-2xl font-bold h-11 shadow-lg shadow-brand/20"
+          className="bg-brand hover:bg-brand/90 text-white rounded-2xl font-bold h-11 shadow-lg shadow-brand/20 w-full sm:w-auto"
           onClick={onIssueNew}
         >
           <Plus size={18} className="mr-2" />
@@ -142,24 +143,29 @@ export default function PassManagement({ onIssueNew }: PassManagementProps) {
             size={18}
           />
           <Input
-            placeholder="search for a refund by user/admin name, ticket name or filter by date"
+            placeholder="Search passes by user, admin or ticket name..."
             className="pl-12 h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Button
-          variant="outline"
-          className="h-12 px-6 rounded-2xl border-surface-subtle font-bold text-content-muted hover:text-brand hover:border-brand transition-all"
-        >
-          <Filter size={18} className="mr-2" />
-          This week
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="h-12 px-5 rounded-2xl border border-surface-subtle bg-white font-bold text-content-muted hover:text-brand hover:border-brand transition-all flex items-center gap-2 text-sm w-full sm:w-auto">
+            <Filter size={16} />
+            This week
+            <ChevronDown size={14} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle">
+            {["Today","This week","This month","This year"].map((opt) => (
+              <DropdownMenuItem key={opt} className="rounded-lg cursor-pointer">{opt}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div className="overflow-x-auto overscroll-x-contain touch-pan-x">
+        <table className="min-w-[600px] w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-surface-subtle">
               <th className="py-4 px-4 text-xs font-bold text-content-muted uppercase tracking-wider">
@@ -188,16 +194,16 @@ export default function PassManagement({ onIssueNew }: PassManagementProps) {
                 key={pass.id}
                 className="group hover:bg-surface-page/50 transition-colors"
               >
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
+                <td className="py-4 px-4 text-sm text-content-primary font-medium">
                   {pass.timestamp}
                 </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
+                <td className="py-4 px-4 text-sm text-content-primary font-medium">
                   {pass.issuedBy}
                 </td>
                 <td className="py-4 px-4 text-sm text-content-primary font-bold">
                   {pass.issuedTo}
                 </td>
-                <td className="py-4 px-4 text-sm text-content-muted font-medium">
+                <td className="py-4 px-4 text-sm text-content-primary font-medium">
                   {pass.reason}
                 </td>
                 <td className="py-4 px-4">

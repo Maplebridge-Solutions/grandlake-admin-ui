@@ -1,378 +1,328 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search,
   Plus,
   Filter,
-  MoreHorizontal,
-  PenLine,
-  Trash2,
   ArrowLeft,
-  ChevronRight,
-  Clock,
-  Calendar,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import Pagination from "@/components/ui/pagination";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
-import type { MaintenanceTask, MaintenanceManagementProps } from "@/lib/types/buses";
+import { MAINTENANCE_FILTER_TABS } from "@/lib/constants/maintenance";
+import MaintenanceForm, { type MaintenanceFormState, type MaintenanceFormErrors } from "./maintenance-form";
+import MaintenanceTable from "./table/maintenance-table";
+import DeleteMaintenanceModal from "./delete-maintenance-modal";
+import type {
+  MaintenanceManagementProps,
+  MaintenanceRecord,
+  MechanicData,
+  BusData,
+} from "@/lib/types/buses";
+import {
+  getAllMaintenance,
+  createMaintenance,
+  updateMaintenance,
+  deleteMaintenance,
+  getMaintenanceLogs,
+  getBuses,
+  getMechanics,
+} from "@/lib/api/fleet";
+import { toast } from "sonner";
 
-const initialTasks: MaintenanceTask[] = [
-  {
-    busNo: "150",
-    type: "Oil change",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Downtown Garage",
-    status: "Scheduled",
-  },
-  {
-    busNo: "24",
-    type: "Oil Change & Brakes",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Downtown Garage",
-    status: "Urgent Repair",
-  },
-  {
-    busNo: "91",
-    type: "Annual Inspection",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Downtown Garage",
-    status: "Completed",
-  },
-  {
-    busNo: "5",
-    type: "Oil change",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "North Station",
-    status: "Scheduled",
-  },
-  {
-    busNo: "200",
-    type: "Engine Overheating",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Downtown Garage",
-    status: "Urgent Repair",
-  },
-  {
-    busNo: "39",
-    type: "Annual Inspection",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Downtown Garage",
-    status: "Scheduled",
-  },
-  {
-    busNo: "12",
-    type: "Oil change",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Main Depot",
-    status: "In shop",
-  },
-  {
-    busNo: "32",
-    type: "Tire Rotation",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Downtown Garage",
-    status: "Scheduled",
-  },
-  {
-    busNo: "98",
-    type: "Oil change",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "City Center",
-    status: "In shop",
-  },
-  {
-    busNo: "30",
-    type: "Annual Inspection",
-    setFor: "8/16/13 09:00am",
-    estimatedReturn: "8/16/13 09:00am",
-    mechanic: "Downtown Garage",
-    status: "Scheduled",
-  },
-];
-
+const EMPTY_FORM: MaintenanceFormState = {
+  formBusId: "",
+  serviceType: "",
+  maintenanceDate: "",
+  maintenanceTime: "",
+  estimatedReturnTime: "",
+  assignedMechanic: "",
+  comments: "",
+};
 
 export default function MaintenanceManagement({
   onAddMechanic,
+  onBack,
+  busId,
 }: MaintenanceManagementProps) {
   const [view, setView] = useState<"list" | "form">("list");
-  const tasks = initialTasks;
+  const [tasks, setTasks] = useState<MaintenanceRecord[]>([]);
+  const [buses, setBuses] = useState<BusData[]>([]);
+  const [mechanics, setMechanics] = useState<MechanicData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [editingTask, setEditingTask] = useState<MaintenanceRecord | null>(null);
+  const [logs, setLogs] = useState<MaintenanceRecord["logs"]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [form, setForm] = useState<MaintenanceFormState>({ ...EMPTY_FORM, formBusId: busId });
+  const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<MaintenanceFormErrors>({});
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MaintenanceRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    async function fetchDropdownData() {
+      try {
+        const [busRes, mechanicRes] = await Promise.all([
+          getBuses({ limit: 100 }),
+          getMechanics({ limit: 100, status: "ACTIVE" }),
+        ]);
+        if (busRes.success) setBuses(Array.isArray(busRes.data) ? busRes.data : []);
+        if (mechanicRes.success) setMechanics(Array.isArray(mechanicRes.data) ? mechanicRes.data : []);
+      } catch {
+        // keep empty
+      }
+    }
+    fetchDropdownData();
+  }, []);
+
+  useEffect(() => {
+    async function fetchMaintenance() {
+      setLoading(true);
+      try {
+        const res = await getAllMaintenance(busId ? { bus: busId } : undefined);
+        if (res.success) setTasks(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        // keep empty
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMaintenance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filteredTasks = tasks.filter((t) => {
+    const matchesSearch =
+      t.serviceType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.assignedMechanic.toLowerCase().includes(searchQuery.toLowerCase());
+    if (activeFilter === "all") return matchesSearch;
+    return matchesSearch && t.status.toLowerCase() === activeFilter.toLowerCase();
+  });
+
+  const resetForm = () => {
+    setEditingTask(null);
+    setForm({ ...EMPTY_FORM, formBusId: busId });
+    setFormErrors({});
+    setLogs([]);
+  };
+
+  const handleEditTask = (task: MaintenanceRecord) => {
+    setEditingTask(task);
+    setForm({
+      formBusId: task.bus == null ? "" : `Bus ${typeof task.bus === "object" ? task.bus.busNumber : task.bus}`,
+      serviceType: task.serviceType,
+      maintenanceDate: task.maintenanceDate.split("T")[0],
+      maintenanceTime: task.maintenanceTime,
+      estimatedReturnTime: task.estimatedReturnTime.split(".")[0].slice(0, 16),
+      assignedMechanic: task.assignedMechanic,
+      comments: task.comments ?? "",
+    });
+    setFormErrors({});
+    setLogs([]);
+    setLogsLoading(true);
+    setView("form");
+    async function fetchLogs() {
+      try {
+        const res = await getMaintenanceLogs(task._id);
+        if (res.success) setLogs(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        // keep empty
+      } finally {
+        setLogsLoading(false);
+      }
+    }
+    fetchLogs();
+  };
+
+  const handleStatusChange = async (task: MaintenanceRecord, status: string) => {
+    setUpdatingStatusId(task._id);
+    try {
+      const taskBusId = typeof task.bus === "object" ? task.bus._id : task.bus;
+      const res = await updateMaintenance(taskBusId, task._id, { status });
+      if (res.success) {
+        setTasks((prev) => prev.map((t) => (t._id === task._id ? res.data : t)));
+        toast.success("Maintenance status updated.");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update status.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const taskBusId = typeof deleteTarget.bus === "object" ? deleteTarget.bus._id : deleteTarget.bus;
+      const res = await deleteMaintenance(taskBusId, deleteTarget._id);
+      if (res.success) {
+        setTasks((prev) => prev.filter((t) => t._id !== deleteTarget._id));
+        setDeleteTarget(null);
+        toast.success("Maintenance record deleted.");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete maintenance record.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const rawBusId = form.formBusId ? String(form.formBusId).replace(/^Bus\s*/i, "").trim() : "";
+    const targetBusId = busId || buses.find((b) => b.busNumber === Number(rawBusId))?._id;
+    const errs: MaintenanceFormErrors = {};
+    if (!targetBusId) errs.formBusId = "Bus is required.";
+    if (!form.serviceType) errs.serviceType = "Type of service is required.";
+    if (!form.maintenanceDate) errs.maintenanceDate = "Maintenance date is required.";
+    if (!form.maintenanceTime) errs.maintenanceTime = "Maintenance time is required.";
+    if (!form.estimatedReturnTime) errs.estimatedReturnTime = "Estimated return time is required.";
+    if (!form.assignedMechanic) errs.assignedMechanic = "Assigned mechanic is required.";
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs);
+      return;
+    }
+    setFormErrors({});
+    setSaving(true);
+    try {
+      if (editingTask) {
+        const editBusId = typeof editingTask.bus === "object" ? editingTask.bus._id : editingTask.bus;
+        const res = await updateMaintenance(editBusId, editingTask._id, {
+          serviceType: form.serviceType,
+          maintenanceDate: form.maintenanceDate,
+          maintenanceTime: form.maintenanceTime,
+          estimatedReturnTime: form.estimatedReturnTime,
+          assignedMechanic: form.assignedMechanic,
+          comments: form.comments,
+        });
+        if (res.success) {
+          setTasks((prev) => prev.map((t) => (t._id === editingTask._id ? res.data : t)));
+          toast.success("Maintenance record updated.");
+          resetForm();
+          setView("list");
+        }
+      } else {
+        const res = await createMaintenance(targetBusId!, {
+          serviceType: form.serviceType,
+          maintenanceDate: form.maintenanceDate,
+          maintenanceTime: form.maintenanceTime,
+          estimatedReturnTime: form.estimatedReturnTime,
+          assignedMechanic: form.assignedMechanic,
+          comments: form.comments,
+        });
+        if (res.success) {
+          setTasks((prev) => [res.data, ...prev]);
+          toast.success("Maintenance scheduled successfully.");
+          resetForm();
+          setView("list");
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (view === "form") {
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setView("list")}
-            className="h-10 w-10 rounded-full hover:bg-brand-light hover:text-brand"
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <h2 className="text-2xl font-bold text-content-primary">
-            Schedule Maintenance for Bus 150
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white border border-surface-subtle rounded-3xl p-8 shadow-sm space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-content-primary">
-                    Bus Number
-                  </Label>
-                  <Select defaultValue="150">
-                    <SelectTrigger className="h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand">
-                      <SelectValue placeholder="Select here" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-surface-subtle">
-                      <SelectItem value="150">150</SelectItem>
-                      <SelectItem value="24">24</SelectItem>
-                      <SelectItem value="91">91</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-content-primary">
-                    Bus Type
-                  </Label>
-                  <Select defaultValue="Single-deck">
-                    <SelectTrigger className="h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand">
-                      <SelectValue placeholder="Select here" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-surface-subtle">
-                      <SelectItem value="Single-deck">Single-deck</SelectItem>
-                      <SelectItem value="Double-deck">Double-deck</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-content-primary">
-                    Type of service
-                  </Label>
-                  <Input
-                    placeholder="Oil change"
-                    className="h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-content-primary">
-                    Set Maintenance Date
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      placeholder="DD/MM/YYYY"
-                      className="h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand pr-10"
-                    />
-                    <Calendar
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-content-muted"
-                      size={18}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-content-primary">
-                    Set Maintenance Time
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Type here"
-                      className="h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand pr-10"
-                    />
-                    <Clock
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-content-muted"
-                      size={18}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-content-primary">
-                    Estimated Return Time
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Type here"
-                      className="h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand pr-10"
-                    />
-                    <Clock
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-content-muted"
-                      size={18}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-bold text-content-primary">
-                      Assigned Mechanic
-                    </Label>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={onAddMechanic}
-                      className="h-8 w-8 rounded-full text-brand hover:bg-brand-light"
-                    >
-                      <Plus size={18} />
-                    </Button>
-                  </div>
-                  <Select>
-                    <SelectTrigger className="h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand">
-                      <SelectValue placeholder="Select here" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-surface-subtle">
-                      <SelectItem value="downtown">Downtown Garage</SelectItem>
-                      <SelectItem value="north">North Station</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label className="text-sm font-bold text-content-primary">
-                    Any additional details or comments?
-                  </Label>
-                  <Textarea
-                    placeholder="Type here"
-                    className="min-h-[120px] bg-surface-page border-surface-subtle rounded-xl focus:ring-brand resize-none"
-                  />
-                </div>
-              </div>
-            </div>
-            <Button className="w-full h-14 bg-brand hover:bg-brand/90 text-white rounded-2xl font-bold text-lg shadow-lg shadow-brand/20 transition-all active:scale-[0.98]">
-              Save
-            </Button>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white border border-surface-subtle rounded-3xl p-8 shadow-sm space-y-6">
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-content-primary">Logs</h3>
-                <p className="text-sm text-content-muted">
-                  This includes registration, insurance and compliance documents
-                </p>
-              </div>
-
-              <div className="space-y-6 relative before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-0.5 before:bg-status-error/20">
-                {[
-                  {
-                    text: "Maintenance completed: Dwayne King",
-                    date: "24/07/2025, 09:52am",
-                    status: "completed",
-                  },
-                  {
-                    text: "Maintenance completed: Dwayne King",
-                    date: "22/07/2025, 09:52am",
-                    status: "completed",
-                  },
-                  {
-                    text: "Maintenance cancelled: John Radley",
-                    date: "24/07/2025, 09:52am",
-                    status: "cancelled",
-                  },
-                  {
-                    text: "Maintenance scheduled: John Radley",
-                    date: "24/07/2025, 09:52am",
-                    status: "scheduled",
-                  },
-                  {
-                    text: "Maintenance completed: Dwayne King",
-                    date: "24/07/2025, 09:52am",
-                    status: "completed",
-                  },
-                  {
-                    text: "Maintenance in progress: John Radley",
-                    date: "24/07/2025, 09:52am",
-                    status: "progress",
-                  },
-                  {
-                    text: "Maintenance completed: John Radley",
-                    date: "24/07/2025, 09:52am",
-                    status: "completed",
-                  },
-                  {
-                    text: "Maintenance completed: Dwayne King",
-                    date: "24/07/2025, 09:52am",
-                    status: "completed",
-                  },
-                ].map((log, i) => (
-                  <div key={i} className="relative pl-6 space-y-1">
-                    <div
-                      className={cn(
-                        "absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 border-white shadow-sm",
-                        log.status === "completed"
-                          ? "bg-brand"
-                          : log.status === "cancelled"
-                            ? "bg-status-error"
-                            : log.status === "progress"
-                              ? "bg-status-warning"
-                              : "bg-status-info",
-                      )}
-                    />
-                    <p className="text-sm font-bold text-content-primary">
-                      {log.text}
-                    </p>
-                    <p className="text-[10px] text-content-muted">{log.date}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <MaintenanceForm
+        form={form}
+        onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+        onClearError={(field) => setFormErrors((prev) => ({ ...prev, [field]: undefined }))}
+        buses={buses}
+        mechanics={mechanics}
+        busId={busId}
+        editingTask={editingTask}
+        logs={logs}
+        logsLoading={logsLoading}
+        saving={saving}
+        formErrors={formErrors}
+        onSave={handleSave}
+        onBack={() => { resetForm(); setView("list"); }}
+        onAddMechanic={onAddMechanic}
+        onMechanicCreated={(mechanic) => {
+          setMechanics((prev) => [...prev, mechanic]);
+          setForm((prev) => ({ ...prev, assignedMechanic: mechanic.fullName }));
+        }}
+      />
     );
   }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      <DeleteMaintenanceModal
+        target={deleteTarget}
+        deleting={deleting}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
+
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onBack}
+          className="h-10 w-10 rounded-full hover:bg-brand-light hover:text-brand"
+        >
+          <ArrowLeft size={20} />
+        </Button>
+        <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h2 className="text-2xl font-bold text-content-primary">
+            Maintenance
+            {busId && buses.find((b) => b._id === busId)
+              ? ` — Bus ${buses.find((b) => b._id === busId)!.busNumber}`
+              : ""}
+          </h2>
+          <Button
+            onClick={() => { resetForm(); setView("form"); }}
+            className="rounded-full px-6 h-11 bg-brand hover:bg-brand/90 text-white font-semibold flex items-center gap-2 shadow-lg shadow-brand/20"
+          >
+            <Plus size={18} />
+            Schedule Maintenance
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters */}
       <div className="flex flex-col space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Tabs defaultValue="all" className="w-auto">
-            <TabsList className="bg-transparent border-none p-0 h-auto gap-2 flex-wrap">
-              {[
-                { label: "All buses", value: "all" },
-                { label: "Active only", value: "active" },
-                { label: "Inactive only", value: "inactive" },
-                { label: "Online only", value: "online" },
-                { label: "Offline only", value: "offline" },
-                { label: "Scheduled maintenance", value: "maintenance" },
-                { label: "Incomplete registration", value: "incomplete" },
-              ].map((tab) => (
+        <div className="lg:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="rounded-full px-5 h-10 border border-surface-subtle bg-white font-semibold flex items-center gap-2 w-full sm:w-auto text-sm hover:border-brand hover:text-brand transition-all">
+              <Filter size={16} />
+              {MAINTENANCE_FILTER_TABS.find((t) => t.value === activeFilter)?.label}
+              <ChevronDown size={14} className="ml-auto" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="rounded-xl border-surface-subtle w-48">
+              {MAINTENANCE_FILTER_TABS.map((tab) => (
+                <DropdownMenuItem
+                  key={tab.value}
+                  onClick={() => setActiveFilter(tab.value)}
+                  className="rounded-lg cursor-pointer"
+                >
+                  {tab.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="hidden lg:block">
+          <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-auto">
+            <TabsList className="bg-transparent border-none p-0 h-auto gap-2 flex flex-wrap">
+              {MAINTENANCE_FILTER_TABS.map((tab) => (
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
@@ -385,131 +335,25 @@ export default function MaintenanceManagement({
           </Tabs>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="relative flex-1 w-full">
-            <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted"
-              size={18}
-            />
-            <Input
-              placeholder="search for buses by number, bus type here"
-              className="h-12 pl-12 bg-white border-surface-subtle rounded-full focus:ring-brand focus:border-brand w-full"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Button
-            variant="outline"
-            className="rounded-full px-6 h-12 border-surface-subtle font-semibold flex items-center gap-2 shrink-0"
-          >
-            <Filter size={18} />
-            This week
-          </Button>
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted" size={18} />
+          <Input
+            placeholder="Search by service or mechanic..."
+            className="h-12 pl-12 bg-white border-surface-subtle rounded-full focus:ring-brand focus:border-brand w-full"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </div>
 
-      <div className="bg-white border border-surface-subtle rounded-3xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-surface-page">
-              <TableRow className="hover:bg-transparent border-b border-surface-subtle">
-                <TableHead className="font-bold text-content-primary py-4 pl-8">
-                  Bus No.
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Type of service
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Set For
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Estimated Return
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Assigned Mechanic
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4">
-                  Status
-                </TableHead>
-                <TableHead className="font-bold text-content-primary py-4 pr-8 text-right">
-                  Actions
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tasks.map((task, i) => (
-                <TableRow
-                  key={i}
-                  className="hover:bg-brand-light/20 border-b border-surface-subtle transition-colors"
-                >
-                  <TableCell className="font-medium text-content-secondary py-5 pl-8">
-                    {task.busNo}
-                  </TableCell>
-                  <TableCell className="text-content-secondary py-5">
-                    {task.type}
-                  </TableCell>
-                  <TableCell className="text-content-secondary py-5 text-sm">
-                    {task.setFor}
-                  </TableCell>
-                  <TableCell className="text-content-secondary py-5 text-sm">
-                    {task.estimatedReturn}
-                  </TableCell>
-                  <TableCell className="text-content-secondary py-5">
-                    {task.mechanic}
-                  </TableCell>
-                  <TableCell className="py-5">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold border-none",
-                          task.status === "Scheduled"
-                            ? "bg-brand-pale text-brand"
-                            : task.status === "Urgent Repair"
-                              ? "bg-status-error-bg text-status-error"
-                              : task.status === "Completed"
-                                ? "bg-status-success-bg text-status-success"
-                                : "bg-surface-subtle text-content-muted",
-                        )}
-                      >
-                        {task.status}
-                      </Badge>
-                      <ChevronRight size={14} className="text-content-muted" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-5 pr-8 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="h-8 w-8 rounded-full hover:bg-brand-light hover:text-brand inline-flex items-center justify-center transition-colors">
-                        <MoreHorizontal size={18} />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="rounded-xl border-surface-subtle"
-                      >
-                        <DropdownMenuItem
-                          onClick={() => setView("form")}
-                          className="cursor-pointer rounded-lg gap-2"
-                        >
-                          <PenLine size={16} />
-                          Edit Task
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer rounded-lg gap-2 text-status-error focus:text-status-error">
-                          <Trash2 size={16} />
-                          Cancel Task
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-
-        <div className="px-8 pb-6">
-          <Pagination />
-        </div>
-      </div>
+      <MaintenanceTable
+        tasks={filteredTasks}
+        loading={loading}
+        updatingStatusId={updatingStatusId}
+        onEdit={handleEditTask}
+        onDelete={setDeleteTarget}
+        onStatusChange={handleStatusChange}
+      />
     </div>
   );
 }

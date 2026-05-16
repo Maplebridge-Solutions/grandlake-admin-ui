@@ -23,7 +23,7 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
-      className={cn("flex flex-1 text-left", className)}
+      className={cn("flex flex-1 text-left text-content-primary", className)}
       {...props}
     />
   )
@@ -118,7 +118,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-content-primary outline-none select-none hover:bg-brand-light hover:text-brand transition-colors data-highlighted:bg-brand-light data-highlighted:text-brand data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "relative flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-content-primary outline-none select-none hover:bg-brand-light hover:text-brand transition-colors data-highlighted:bg-brand-light data-highlighted:text-brand data-selected:bg-brand-light data-selected:text-brand data-selected:font-bold data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className
       )}
       {...props}

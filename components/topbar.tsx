@@ -1,26 +1,49 @@
 "use client";
 
-import { Search, Bell, RefreshCw, ChevronDown, LogOut } from "lucide-react";
+import { Search, Bell, ChevronDown, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useState, useCallback } from "react";
 import NotificationsModal from "./notificationModal";
 import { useRouter } from "next/navigation";
+import { logout } from "@/lib/api/auth";
+import { useAuthStore } from "@/lib/stores/authStore";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Topbar() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const handleUnreadCountChange = useCallback(
+    (count: number | ((prev: number) => number)) => setUnreadCount(count),
+    [],
+  );
   const router = useRouter();
+  const { user, clearAuth, _hasHydrated } = useAuthStore();
 
-  const handleLogout = () => {
-    document.cookie = "auth_token=; path=/; max-age=0";
+  const profile = user?.profile;
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName.charAt(0)}.`
+    : "";
+  const initials = profile
+    ? `${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`
+    : "";
+  const role = user?.user?.role ?? user?.user?.roles?.[0] ?? "";
+
+  const handleLogout = async () => {
+    await logout().catch(() => {});
+    clearAuth();
     router.push("/login");
   };
 
   return (
-    <header className="h-20 bg-white border-b border-surface-subtle flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
-      {/* Search Bar - Hidden on small mobile, compact on others */}
-      <div className="flex-1 max-w-2xl relative hidden sm:block">
+    <header className="h-20  bg-white border-b border-surface-subtle flex items-center justify-between px-6 md:py-3 py-5 sm:px-10 lg:px-12 pl-16 sm:pl-10 lg:pl-12 sticky top-0 z-30">
+      {/* Search Bar - hidden on mobile */}
+      <div className="flex-1 max-w-2xl relative hidden md:block">
         <Search
           className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted"
           size={18}
@@ -32,16 +55,8 @@ export default function Topbar() {
         />
       </div>
 
-      {/* Mobile Search Icon (when bar is hidden) */}
-      <div className="sm:hidden">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-content-muted hover:text-brand hover:bg-brand-light rounded-full"
-        >
-          <Search size={20} />
-        </Button>
-      </div>
+      {/* Spacer on mobile so right side stays right */}
+      <div className="flex-1 md:hidden" />
 
       {/* Right Side Actions */}
       <div className="flex items-center gap-2 sm:gap-6">
@@ -65,46 +80,64 @@ export default function Topbar() {
               />
               <span className="absolute top-2 right-2 w-2 h-2 bg-status-error-bright rounded-full border-2 border-white" />
             </Button> */}
-            <div className="text-content-muted hover:text-brand hover:bg-brand-light rounded-full relative">
-              <Bell
-                size={20}
-                onClick={() => setIsNotificationsOpen((v) => !v)}
-              />
-              <span className="absolute bottom-4 right-0 w-2 h-2 bg-status-error-bright rounded-full border-2 border-white" />
-            </div>
+            <button
+              onClick={() => setIsNotificationsOpen((v) => !v)}
+              className="p-2 rounded-full text-content-muted hover:text-brand hover:bg-brand-light transition-colors relative"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 bg-status-error-bright text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
 
             <NotificationsModal
               isOpen={isNotificationsOpen}
               onClose={() => setIsNotificationsOpen(false)}
+              onUnreadCountChange={handleUnreadCountChange}
             />
           </div>
         </div>
 
         {/* User Profile */}
-        <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-6 border-l border-surface-subtle cursor-pointer group">
-          <div className="hidden sm:flex flex-col items-end">
-            <span className="text-sm font-bold text-content-primary group-hover:text-brand transition-colors">
-              Ryker .K.
-            </span>
-            <span className="text-[10px] font-semibold text-content-muted">
-              Super Admin
-            </span>
-          </div>
-          <Avatar className="w-8 h-8 sm:w-10 sm:h-10 border-2 border-brand-subtle group-hover:border-brand transition-all">
-            <AvatarImage src="https://picsum.photos/seed/ryker/100/100" />
-            <AvatarFallback className="bg-brand-light text-brand font-bold text-xs sm:text-sm">
-              RK
-            </AvatarFallback>
-          </Avatar>
-          <ChevronDown
-            size={16}
-            className="text-content-muted group-hover:text-brand transition-colors hidden sm:block"
-          />
-          {/* <button className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-content-muted hover:bg-red-50 hover:text-red-500 transition-all">
-           
-          </button> */}
-          <LogOut size={14} onClick={handleLogout} />
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-6 border-l border-surface-subtle cursor-pointer group outline-none bg-transparent border-t-0 border-r-0 border-b-0">
+            {!_hasHydrated ? (
+              <div className="hidden sm:flex flex-col items-end gap-1">
+                <div className="h-3 w-20 bg-surface-subtle rounded animate-pulse" />
+                <div className="h-2 w-14 bg-surface-subtle rounded animate-pulse" />
+              </div>
+            ) : (
+              <div className="hidden sm:flex flex-col items-end">
+                <span className="text-sm font-bold text-content-primary group-hover:text-brand transition-colors max-w-30 truncate">
+                  {displayName}
+                </span>
+                <span className="text-xs font-semibold text-content-muted capitalize">
+                  {role}
+                </span>
+              </div>
+            )}
+            <Avatar className="w-8 h-8 sm:w-10 sm:h-10 border-2 border-brand-subtle group-hover:border-brand transition-all">
+              <AvatarFallback className="bg-brand-light text-brand font-bold text-xs sm:text-sm">
+                {_hasHydrated ? initials : ""}
+              </AvatarFallback>
+            </Avatar>
+            <ChevronDown
+              size={16}
+              className="text-content-muted group-hover:text-brand transition-colors hidden sm:block"
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle w-44 shadow-xl p-1">
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="cursor-pointer rounded-lg gap-2 text-status-error focus:text-status-error font-semibold"
+            >
+              <LogOut size={15} />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

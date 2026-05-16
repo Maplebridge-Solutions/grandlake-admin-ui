@@ -8,26 +8,26 @@ import DriverForm from "@/components/manage-drivers/driver-form";
 import DriverProfile from "@/components/manage-drivers/driver-profile";
 import AssignShiftModal from "@/components/manage-drivers/assign-shift-modal";
 import IncidentReportModal from "@/components/manage-drivers/incident-report-modal";
-import type { DriverViewState, Driver } from "@/lib/types/drivers";
+import type { DriverViewState, DriverData } from "@/lib/types/drivers";
 
 export default function ManageDriversPage() {
   const [view, setView] = useState<DriverViewState>("list");
-  const [selectedDriver, setSelectedDriver] = useState<Driver | undefined>(undefined);
+  const [selectedDriver, setSelectedDriver] = useState<DriverData | undefined>(undefined);
   const [isAssignShiftModalOpen, setIsAssignShiftModalOpen] = useState(false);
-  const [isIncidentReportModalOpen, setIsIncidentReportModalOpen] =
-    useState(false);
+  const [isIncidentReportModalOpen, setIsIncidentReportModalOpen] = useState(false);
+  const [shiftsRefreshKey, setShiftsRefreshKey] = useState(0);
 
   const handleAddDriver = () => {
     setSelectedDriver(undefined);
     setView("add");
   };
 
-  const handleEditDriver = (driver: Driver) => {
+  const handleEditDriver = (driver: DriverData) => {
     setSelectedDriver(driver);
     setView("edit");
   };
 
-  const handleViewProfile = (driver: Driver) => {
+  const handleViewProfile = (driver: DriverData) => {
     setSelectedDriver(driver);
     setView("profile");
   };
@@ -39,18 +39,15 @@ export default function ManageDriversPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       {view === "list" && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold text-content-primary">
+            <h1 className="text-2xl sm:text-3xl font-bold text-content-primary">
               Driver/Staff Management
             </h1>
-            <p className="text-content-muted">
-              Manage driver profiles and shifts, rosters here
-            </p>
+            <p className="text-content-muted">Manage driver profiles and shifts, rosters here</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="outline"
               onClick={() => setIsAssignShiftModalOpen(true)}
@@ -69,7 +66,6 @@ export default function ManageDriversPage() {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="animate-in fade-in duration-500">
         {view === "list" && (
           <DriverList
@@ -83,19 +79,22 @@ export default function ManageDriversPage() {
           <DriverForm onBack={handleBack} driver={selectedDriver} />
         )}
 
-        {view === "profile" && (
+        {view === "profile" && selectedDriver && (
           <DriverProfile
-            driver={selectedDriver!}
+            driver={selectedDriver}
             onBack={handleBack}
             onEdit={() => setView("edit")}
+            onAssignShift={() => setIsAssignShiftModalOpen(true)}
+            shiftsRefreshKey={shiftsRefreshKey}
           />
         )}
       </div>
 
-      {/* Modals */}
       <AssignShiftModal
         isOpen={isAssignShiftModalOpen}
         onClose={() => setIsAssignShiftModalOpen(false)}
+        defaultDriverId={selectedDriver?._id}
+        onSuccess={() => setShiftsRefreshKey((k) => k + 1)}
       />
       <IncidentReportModal
         isOpen={isIncidentReportModalOpen}

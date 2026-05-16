@@ -21,7 +21,7 @@ export default function RefundSettings() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Self-Service Window */}
         <div className="p-6 bg-surface-page border border-surface-subtle rounded-[24px] space-y-4 flex flex-col justify-between">
           <div className="space-y-2">
