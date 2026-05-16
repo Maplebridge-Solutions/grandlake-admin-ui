@@ -96,7 +96,7 @@ export default function ReassignRoleModal({ admin, onClose, onSuccess }: Props) 
 
           <div className="space-y-1.5">
             <Label className="text-sm font-bold text-content-muted">New Role</Label>
-            <Select value={role} onValueChange={(v) => { setRole(v); setError(""); }}>
+            <Select value={role} onValueChange={(v) => { setRole(v ?? ""); setError(""); }}>
               <SelectTrigger className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all ${error ? "border-red-400" : ""}`}>
                 <SelectValue placeholder="Select new role" />
               </SelectTrigger>
