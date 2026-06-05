@@ -3,6 +3,7 @@ import type {
   TicketCatalogRecord,
   GetTicketsParams,
   CreateTicketBody,
+  UpdateTicketBody,
 } from "@/lib/types/tickets";
 
 interface ApiResponse<T> {
@@ -48,7 +49,7 @@ export const createTicketEntry = async (
 
 export const updateTicketEntry = async (
   id: string,
-  body: Partial<CreateTicketBody>,
+  body: UpdateTicketBody,
 ): Promise<ApiResponse<TicketCatalogRecord>> => {
   const response = await apiClient.patch<ApiResponse<TicketCatalogRecord>>(
     `tickets/${id}`,

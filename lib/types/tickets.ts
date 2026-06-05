@@ -29,6 +29,10 @@ export interface GetTicketsParams {
   limit?: number;
 }
 
+export interface UpdateTicketBody extends Partial<CreateTicketBody> {
+  isActive?: boolean;
+}
+
 export interface CreateTicketBody {
   name: string;
   description?: string;

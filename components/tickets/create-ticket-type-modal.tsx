@@ -189,7 +189,7 @@ export default function CreateTicketTypeModal({
               </Label>
               <Select
                 value={ridesCount}
-                onValueChange={setRidesCount}
+                onValueChange={(v) => { if (v) setRidesCount(v); }}
                 disabled={category !== "Multi Ride"}
               >
                 <SelectTrigger className="h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand focus:bg-transparent transition-all disabled:opacity-40 disabled:cursor-not-allowed">
