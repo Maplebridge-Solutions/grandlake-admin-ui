@@ -58,11 +58,9 @@ export default function BusTable({
     setUpdatingId(bus._id);
     try {
       await updateBus(bus._id, {
-        documentsVerified: bus.documentsVerified,
         status: bus.status,
         wheelChairAccessible: bus.wheelChairAccessible,
         online: bus.online,
-        documents: [],
         ...patch,
       });
       const label = patch.online !== undefined
