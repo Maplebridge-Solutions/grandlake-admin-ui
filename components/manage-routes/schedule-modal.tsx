@@ -29,8 +29,8 @@ export default function ScheduleModal({
     const rows = schedules.map((s) =>
       `<tr>
         <td><strong>${s.day}</strong></td>
-        <td>${s.is24hoursService ? "—" : formatTime(s.startTime)}</td>
-        <td>${s.is24hoursService ? "—" : formatTime(s.endTime)}</td>
+        <td>${formatTime(s.startTime)}</td>
+        <td>${formatTime(s.endTime)}</td>
         <td>${s.is24hoursService ? "24h" : "Standard"}</td>
       </tr>`
     ).join("");
@@ -114,10 +114,10 @@ export default function ScheduleModal({
                         {s.day}
                       </div>
                       <div className="p-4 text-center text-xs text-content-secondary">
-                        {s.is24hoursService ? "—" : formatTime(s.startTime)}
+                        {formatTime(s.startTime)}
                       </div>
                       <div className="p-4 text-center text-xs text-content-secondary">
-                        {s.is24hoursService ? "—" : formatTime(s.endTime)}
+                        {formatTime(s.endTime)}
                       </div>
                       <div className="p-4 text-center">
                         <span className={`text-xs font-bold px-3 py-1 rounded-lg ${
