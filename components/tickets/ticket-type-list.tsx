@@ -11,10 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { getAllTicketCatalog } from "@/lib/api/tickets";
+import { getAllTicketCatalog, updateTicketEntry } from "@/lib/api/tickets";
 import type { TicketCatalogRecord } from "@/lib/types/tickets";
 import EditTicketTypeModal from "./edit-ticket-type-modal";
 import DeleteTicketTypeModal from "./delete-ticket-type-modal";
+import { toast } from "sonner";
 
 const CATEGORY_LABEL: Record<string, string> = {
   SINGLE_RIDE: "Single Ride",
@@ -49,6 +50,20 @@ export default function TicketTypeList({ onCreated }: { onCreated?: number }) {
   const [loading, setLoading] = useState(true);
   const [editTicket, setEditTicket] = useState<TicketCatalogRecord | null>(null);
   const [deleteTicket, setDeleteTicket] = useState<TicketCatalogRecord | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const handleToggleStatus = async (ticket: TicketCatalogRecord) => {
+    setTogglingId(ticket._id);
+    try {
+      await updateTicketEntry(ticket._id, { isActive: !ticket.isActive });
+      toast.success(`Ticket marked as ${!ticket.isActive ? "active" : "inactive"}.`);
+      fetchTickets();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update ticket status.");
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -88,23 +103,16 @@ export default function TicketTypeList({ onCreated }: { onCreated?: number }) {
   };
 
   const q = searchQuery.toLowerCase();
-  const filtered = tickets.filter(
-    (t) =>
+  const filtered = tickets.filter((t) => {
+    if (activeTab === "active" && !t.isActive) return false;
+    if (activeTab === "inactive" && t.isActive) return false;
+    if (!q) return true;
+    return (
       t.name.toLowerCase().includes(q) ||
       t.riderType.toLowerCase().includes(q) ||
-      t.category.toLowerCase().includes(q),
-  );
-
-  if (!loading && tickets.length === 0 && activeTab === "all" && !searchQuery) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
-        <div className="text-center">
-          <h3 className="text-xl font-bold text-content-primary">No Ticket Types Created Yet</h3>
-          <p className="text-content-muted mt-2 max-w-xs">Create ticket types to start selling tickets to your users</p>
-        </div>
-      </div>
+      t.category.toLowerCase().includes(q)
     );
-  }
+  });
 
   return (
     <div className="space-y-6">
@@ -191,7 +199,22 @@ export default function TicketTypeList({ onCreated }: { onCreated?: number }) {
               ))
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-content-muted text-sm">No results found.</td>
+                <td colSpan={8} className="py-16 text-center">
+                  <h3 className="text-lg font-bold text-content-primary">
+                    {activeTab === "active"
+                      ? "No Active Tickets"
+                      : activeTab === "inactive"
+                        ? "No Inactive Tickets"
+                        : "No Ticket Types Created Yet"}
+                  </h3>
+                  <p className="text-content-muted mt-1 text-sm">
+                    {searchQuery
+                      ? `No tickets match "${searchQuery}"`
+                      : activeTab === "all"
+                        ? "Create ticket types to start selling tickets to your riders."
+                        : "Try switching to a different filter."}
+                  </p>
+                </td>
               </tr>
             ) : filtered.map((ticket) => (
               <tr key={ticket._id} className="group hover:bg-surface-page/50 transition-colors">
@@ -232,6 +255,15 @@ export default function TicketTypeList({ onCreated }: { onCreated?: number }) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle shadow-xl p-1">
                       <DropdownMenuItem className="rounded-lg font-medium cursor-pointer" onClick={() => setEditTicket(ticket)}>Edit Ticket</DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="rounded-lg font-medium cursor-pointer"
+                        disabled={togglingId === ticket._id}
+                        onClick={() => handleToggleStatus(ticket)}
+                      >
+                        {togglingId === ticket._id
+                          ? "Updating..."
+                          : ticket.isActive ? "Mark as Inactive" : "Mark as Active"}
+                      </DropdownMenuItem>
                       <DropdownMenuItem className="rounded-lg font-medium cursor-pointer text-red-600" onClick={() => setDeleteTicket(ticket)}>Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

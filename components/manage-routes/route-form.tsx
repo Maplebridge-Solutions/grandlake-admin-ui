@@ -434,12 +434,10 @@ export default function RouteForm({ onBack, route, readOnly = false, onViewSched
                     <p className="text-sm text-content-muted">Type a stop name and press Enter or + to add</p>
                   )}
                 </div>
-                {!readOnly && (
-                  <Button variant="outline" className="rounded-full px-4 h-10 border-brand text-brand hover:bg-brand-light font-bold text-xs gap-2">
+                {/* <Button variant="outline" className="rounded-full px-4 h-10 border-brand text-brand hover:bg-brand-light font-bold text-xs gap-2">
                     <Wand2 size={16} />
                     Generate Instead
-                  </Button>
-                )}
+                  </Button> */}
               </div>
 
               {!readOnly && (

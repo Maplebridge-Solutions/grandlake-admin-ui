@@ -12,25 +12,25 @@ function getToken(): string | null {
 }
 
 export function useNotificationSocket(onNew: (n: NotificationRecord) => void) {
-  const socketRef = useRef<Socket | null>(null);
+  const onNewRef = useRef(onNew);
+  onNewRef.current = onNew;
 
   useEffect(() => {
     const token = getToken();
     const baseUrl = config.apiBaseUrl.replace(/\/api\/v1\/?$/, "");
 
-    const socket = io(baseUrl, {
+    const socket: Socket = io(baseUrl, {
       auth: { token },
       transports: ["websocket"],
+      reconnectionAttempts: 5,
     });
 
-    socketRef.current = socket;
-
     socket.on("notification:new", (notification: NotificationRecord) => {
-      onNew(notification);
+      onNewRef.current(notification);
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [onNew]);
+  }, []); // socket created once, callback always up-to-date via ref
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import BusMap from "@/components/bus-map";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +25,8 @@ import type { DashboardBusOperation } from "@/lib/types/dashboard";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { getDashboardOverview } from "@/lib/api/dashboard";
 import type { DashboardOverviewParams } from "@/lib/api/dashboard";
+import { getMissedNotifications, type NotificationRecord } from "@/lib/api/notifications";
+import { useNotificationSocket } from "@/lib/hooks/useNotificationSocket";
 
 type TimeFilter = "Today" | "This week" | "This month" | "This year";
 
@@ -72,18 +74,13 @@ const filterTabs = [
   { label: "Inactive only", value: "inactive" },
 ];
 
-const alerts = [
-  {
-    message: "Bus T-365 is 4 minutes behind time",
-    time: "2m ago",
-    type: "error",
-  },
-  { message: "Bus T-5 is 5 minutes early", time: "2m ago", type: "warning" },
-  { message: "Bus T-5 is 5 minutes early", time: "2m ago", type: "warning" },
-  { message: "Bus T-5 is 5 minutes early", time: "2m ago", type: "warning" },
-  { message: "Bus T-5 is 5 minutes early", time: "2m ago", type: "warning" },
-  { message: "Bus T-5 is 5 minutes early", time: "2m ago", type: "warning" },
-];
+function timeAgo(iso: string) {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+}
 
 function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat("en-CA", {
@@ -103,6 +100,22 @@ export default function DashboardPage() {
   );
   const [activeFilter, setActiveFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("This week");
+
+  const [alerts, setAlerts] = useState<NotificationRecord[]>([]);
+
+  // Fetch recent notifications for the alerts panel
+  useEffect(() => {
+    getMissedNotifications()
+      .then((res) => setAlerts(res.data.slice(0, 8)))
+      .catch(() => {});
+  }, []);
+
+  // Push new notifications into the alerts panel in real time
+  useNotificationSocket(
+    useCallback((n: NotificationRecord) => {
+      setAlerts((prev) => [n, ...prev].slice(0, 8));
+    }, []),
+  );
 
   const [overview, setOverview] = useState<{
     totalRiders: number;
@@ -404,30 +417,42 @@ export default function DashboardPage() {
               Latest Alerts
             </h2>
             <span className="text-xs font-semibold text-content-muted">
-              Real time alerts
+              Real time
             </span>
           </div>
           <div className="space-y-4">
-            {alerts.map((alert, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "p-4 rounded-2xl bg-white border-l-4 shadow-sm relative",
-                  alert.type === "error"
-                    ? "border-status-error"
-                    : "border-status-warning",
-                )}
-              >
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium text-content-primary leading-tight">
-                    {alert.message}
-                  </p>
-                  <span className="text-xs font-semibold text-content-muted mt-2">
-                    {alert.time}
-                  </span>
-                </div>
+            {alerts.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-white border border-surface-subtle shadow-sm text-center">
+                <p className="text-sm font-semibold text-content-primary">No alerts</p>
+                <p className="text-xs text-content-muted mt-1">You&apos;re all caught up!</p>
               </div>
-            ))}
+            ) : (
+              alerts.map((alert) => (
+                <div
+                  key={alert._id}
+                  className={cn(
+                    "p-4 rounded-2xl bg-white border-l-4 shadow-sm",
+                    alert.level === "error"
+                      ? "border-status-error"
+                      : alert.level === "warning"
+                        ? "border-status-warning"
+                        : "border-brand",
+                  )}
+                >
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-bold text-content-primary leading-tight">
+                      {alert.title}
+                    </p>
+                    <p className="text-xs text-content-muted leading-relaxed line-clamp-2">
+                      {alert.message}
+                    </p>
+                    <span className="text-xs font-semibold text-content-muted mt-1">
+                      {timeAgo(alert.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

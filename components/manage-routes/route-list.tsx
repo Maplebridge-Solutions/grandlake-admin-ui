@@ -163,9 +163,15 @@ export default function RouteList({ onViewRoute, onEditRoute }: RouteListProps) 
             </div>
           ))
         ) : filteredRoutes.length === 0 ? (
-          <div className="col-span-full flex flex-col items-center justify-center py-20 space-y-4">
-            <p className="text-xl font-bold text-content-primary">No Routes Found</p>
-            <p className="text-content-muted text-sm">Try a different date range or search term.</p>
+          <div className="col-span-full bg-white border border-surface-subtle rounded-3xl py-20 flex flex-col items-center justify-center space-y-2 shadow-sm">
+            <h3 className="text-lg font-bold text-content-primary">No Routes Found</h3>
+            <p className="text-content-muted text-sm">
+              {searchQuery
+                ? `No routes match "${searchQuery}"`
+                : datePreset !== "all"
+                  ? "No routes were created in this period. Try a different date range."
+                  : "Create your first route using the button above."}
+            </p>
           </div>
         ) : (
           filteredRoutes.map((route) => (

@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import Image from "next/image";
 import type { BusData, BusListProps } from "@/lib/types/buses";
 import { getBuses, deleteBus } from "@/lib/api/fleet";
 import { toast } from "sonner";
@@ -74,6 +73,12 @@ export default function BusList({ onEditBus, onMaintenance }: BusListProps) {
     setPage(1);
   }, [activeFilter, debouncedSearch]);
 
+  useEffect(() => {
+    const handler = () => fetchBuses();
+    window.addEventListener("bus-status-updated", handler);
+    return () => window.removeEventListener("bus-status-updated", handler);
+  }, [fetchBuses]);
+
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setPage(1);
@@ -95,29 +100,6 @@ export default function BusList({ onEditBus, onMaintenance }: BusListProps) {
       setDeletingId(null);
     }
   };
-
-  if (!loading && buses.length === 0 && !searchQuery && activeFilter === "all") {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
-        <div className="relative w-48 h-48 opacity-50">
-          <Image
-            src="https://picsum.photos/seed/empty-bus/400/400"
-            alt="No data"
-            fill
-            className="object-contain"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-        <div className="text-center">
-          <h3 className="text-xl font-bold text-content-primary">No Buses Added Yet</h3>
-          <p className="text-content-muted mt-2">
-            You can view and manage buses here after you&apos;ve added buses.
-          </p>
-          <p className="text-content-muted">Add buses from button in top right</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

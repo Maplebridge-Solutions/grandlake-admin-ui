@@ -119,6 +119,14 @@ export default function ManageRolesView({ onShowDetails, onRegisterSave }: Manag
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-subtle">
+            {sections.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-16 text-center">
+                  <h3 className="text-lg font-bold text-content-primary">No Permissions Configured</h3>
+                  <p className="text-content-muted mt-1 text-sm">Role permissions will appear here once they have been set up.</p>
+                </td>
+              </tr>
+            )}
             {sections.map((section, sectionIdx) => (
               <Fragment key={sectionIdx}>
                 {section.actions.map((action, actionIdx) => (

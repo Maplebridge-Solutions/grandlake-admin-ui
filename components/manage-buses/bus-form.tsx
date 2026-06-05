@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, X, FileText } from "lucide-react";
+import { ArrowLeft, X, FileText, Plus } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -193,10 +194,10 @@ export default function BusForm({ onBack, bus }: BusFormProps) {
                 <Select
                   value={route}
                   onValueChange={(v) => { if (v) { setRoute(v); setErrors((p) => ({ ...p, route: undefined })); } }}
-                  disabled={routesLoading}
+                  disabled={routesLoading || routes.length === 0}
                 >
                   <SelectTrigger className={cn("h-12 bg-surface-page border-surface-subtle rounded-xl focus:ring-brand", errors.route && "border-status-error")}>
-                    <SelectValue placeholder={routesLoading ? "Loading routes..." : "Select a route"} />
+                    <SelectValue placeholder={routesLoading ? "Loading routes..." : routes.length === 0 ? "No routes available" : "Select a route"} />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-surface-subtle">
                     {routes.map((r) => (
@@ -205,6 +206,15 @@ export default function BusForm({ onBack, bus }: BusFormProps) {
                   </SelectContent>
                 </Select>
                 {errors.route && <p className="text-xs text-status-error">{errors.route}</p>}
+                {!routesLoading && routes.length === 0 && (
+                  <Link
+                    href="/manage-routes"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-brand hover:underline mt-1"
+                  >
+                    <Plus size={13} />
+                    No routes yet — create one first
+                  </Link>
+                )}
               </div>
 
               <div className="space-y-2">

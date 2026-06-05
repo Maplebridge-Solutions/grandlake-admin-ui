@@ -1,10 +1,10 @@
 "use client";
 
-import { Search, Bell, ChevronDown, LogOut } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Bell, ChevronDown, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState, useCallback } from "react";
 import NotificationsModal from "./notificationModal";
+import GlobalSearch from "./global-search";
 import { useRouter } from "next/navigation";
 import { logout } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/authStore";
@@ -42,18 +42,7 @@ export default function Topbar() {
 
   return (
     <header className="h-20  bg-white border-b border-surface-subtle flex items-center justify-between px-6 md:py-3 py-5 sm:px-10 lg:px-12 pl-16 sm:pl-10 lg:pl-12 sticky top-0 z-30">
-      {/* Search Bar - hidden on mobile */}
-      <div className="flex-1 max-w-2xl relative hidden md:block">
-        <Search
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-content-muted"
-          size={18}
-        />
-        <Input
-          type="search"
-          placeholder="search for anything here"
-          className="h-11 pl-12 bg-surface-page border-surface-subtle rounded-full focus:ring-brand focus:border-brand w-full"
-        />
-      </div>
+      <GlobalSearch />
 
       {/* Spacer on mobile so right side stays right */}
       <div className="flex-1 md:hidden" />

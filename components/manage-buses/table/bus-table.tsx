@@ -1,11 +1,13 @@
 "use client";
 
-import { MoreHorizontal, PenLine, Trash2, Wrench } from "lucide-react";
+import { useState } from "react";
+import { MoreHorizontal, PenLine, Trash2, Wrench, Wifi, WifiOff, CheckCircle, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -18,6 +20,8 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { BusData } from "@/lib/types/buses";
+import { updateBus } from "@/lib/api/fleet";
+import { toast } from "sonner";
 
 const TABLE_HEADS = [
   { label: "Fleet Number", className: "font-bold text-content-primary py-4 pl-8" },
@@ -45,6 +49,36 @@ export default function BusTable({
   onMaintenance,
   onDelete,
 }: BusTableProps) {
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleStatusUpdate = async (
+    bus: BusData,
+    patch: { online?: boolean; status?: string },
+  ) => {
+    setUpdatingId(bus._id);
+    try {
+      await updateBus(bus._id, {
+        documentsVerified: bus.documentsVerified,
+        status: bus.status,
+        wheelChairAccessible: bus.wheelChairAccessible,
+        online: bus.online,
+        documents: [],
+        ...patch,
+      });
+      const label = patch.online !== undefined
+        ? (patch.online ? "Bus set to Online" : "Bus set to Offline")
+        : `Bus status set to ${patch.status}`;
+      toast.success(label);
+      // Refresh is handled by the parent via onDelete callback pattern;
+      // optimistically update the row in the local list via a page reload signal
+      window.dispatchEvent(new CustomEvent("bus-status-updated"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update bus status.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   return (
     <div className="bg-white border border-surface-subtle rounded-3xl overflow-hidden shadow-sm">
       <div className="overflow-x-auto overscroll-x-contain touch-pan-x">
@@ -71,8 +105,9 @@ export default function BusTable({
               ))
             ) : buses.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-content-muted">
-                  No buses found.
+                <TableCell colSpan={6} className="py-16 text-center">
+                  <h3 className="text-lg font-bold text-content-primary">No Buses Added Yet</h3>
+                  <p className="text-content-muted mt-1 text-sm">You can view and manage buses here after you&apos;ve added them.</p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -123,7 +158,7 @@ export default function BusTable({
                       <DropdownMenuTrigger className="h-8 w-8 rounded-full hover:bg-brand-light hover:text-brand inline-flex items-center justify-center transition-colors">
                         <MoreHorizontal size={18} />
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle w-48">
+                      <DropdownMenuContent align="end" className="rounded-xl border-surface-subtle w-52">
                         <DropdownMenuItem
                           onClick={() => onEdit(bus)}
                           className="cursor-pointer rounded-lg gap-2"
@@ -138,6 +173,40 @@ export default function BusTable({
                           <Wrench size={16} />
                           Schedule Maintenance
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          disabled={updatingId === bus._id || bus.online}
+                          onClick={() => handleStatusUpdate(bus, { online: true, status: "Active" })}
+                          className="cursor-pointer rounded-lg gap-2"
+                        >
+                          <Wifi size={16} className="text-brand" />
+                          {updatingId === bus._id ? "Updating..." : "Set Online"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={updatingId === bus._id || !bus.online}
+                          onClick={() => handleStatusUpdate(bus, { online: false, status: "Inactive" })}
+                          className="cursor-pointer rounded-lg gap-2"
+                        >
+                          <WifiOff size={16} className="text-content-muted" />
+                          {updatingId === bus._id ? "Updating..." : "Set Offline"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={updatingId === bus._id || bus.status === "Active"}
+                          onClick={() => handleStatusUpdate(bus, { status: "Active" })}
+                          className="cursor-pointer rounded-lg gap-2"
+                        >
+                          <CheckCircle size={16} className="text-brand" />
+                          Set Active
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={updatingId === bus._id || bus.status === "Inactive"}
+                          onClick={() => handleStatusUpdate(bus, { status: "Inactive" })}
+                          className="cursor-pointer rounded-lg gap-2"
+                        >
+                          <XCircle size={16} className="text-status-error" />
+                          Set Inactive
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => onDelete(bus)}
                           disabled={deletingId === bus._id}

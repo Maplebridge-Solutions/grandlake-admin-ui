@@ -61,7 +61,7 @@ export default function CreateTicketTypeModal({
   const [riderType, setRiderType] = useState("");
   const [ridesCount, setRidesCount] = useState("1");
   const [price, setPrice] = useState("");
-  const [validityDays, setValidityDays] = useState("");
+  const [validityDays, setValidityDays] = useState("365 days");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -74,7 +74,7 @@ export default function CreateTicketTypeModal({
     setRiderType("");
     setRidesCount("1");
     setPrice("");
-    setValidityDays("");
+    setValidityDays("365 days");
     setDescription("");
     setErrors({});
   };
@@ -148,15 +148,15 @@ export default function CreateTicketTypeModal({
                 placeholder="e.g. Adult 1 Ride"
                 value={name}
                 onChange={(e) => { setName(e.target.value); setErrors((prev) => ({ ...prev, name: undefined })); }}
-                className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all ${errors.name ? "border-red-400" : ""}`}
+                className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand focus:bg-transparent transition-all ${errors.name ? "border-red-400" : ""}`}
               />
               {errors.name && <p className="text-xs text-red-500 font-medium">{errors.name}</p>}
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-sm font-bold text-content-muted">Category</Label>
-              <Select value={category} onValueChange={(v) => { setCategory(v ?? ""); setErrors((prev) => ({ ...prev, category: undefined })); }}>
-                <SelectTrigger className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all ${errors.category ? "border-red-400" : ""}`}>
+              <Select value={category} onValueChange={(v) => { setCategory(v ?? ""); if (v !== "Multi Ride") setRidesCount("1"); setErrors((prev) => ({ ...prev, category: undefined })); }}>
+                <SelectTrigger className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand focus:bg-transparent transition-all ${errors.category ? "border-red-400" : ""}`}>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-surface-subtle shadow-xl">
@@ -171,7 +171,7 @@ export default function CreateTicketTypeModal({
             <div className="space-y-1.5">
               <Label className="text-sm font-bold text-content-muted">Rider Type</Label>
               <Select value={riderType} onValueChange={(v) => { setRiderType(v ?? ""); setErrors((prev) => ({ ...prev, riderType: undefined })); }}>
-                <SelectTrigger className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all ${errors.riderType ? "border-red-400" : ""}`}>
+                <SelectTrigger className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand focus:bg-transparent transition-all ${errors.riderType ? "border-red-400" : ""}`}>
                   <SelectValue placeholder="Select rider type" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-surface-subtle shadow-xl">
@@ -184,15 +184,22 @@ export default function CreateTicketTypeModal({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm font-bold text-content-muted">Number of Rides</Label>
-              <Input
-                type="number"
-                min="1"
-                placeholder="1"
+              <Label className={`text-sm font-bold ${category === "Multi Ride" ? "text-content-muted" : "text-content-muted/40"}`}>
+                Number of Rides
+              </Label>
+              <Select
                 value={ridesCount}
-                onChange={(e) => setRidesCount(e.target.value)}
-                className="h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all"
-              />
+                onValueChange={setRidesCount}
+                disabled={category !== "Multi Ride"}
+              >
+                <SelectTrigger className="h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand focus:bg-transparent transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                  <SelectValue placeholder="Select rides" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-surface-subtle shadow-xl">
+                  <SelectItem value="10">10 rides</SelectItem>
+                  <SelectItem value="20">20 rides</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
@@ -221,7 +228,7 @@ export default function CreateTicketTypeModal({
             <div className="space-y-1.5">
               <Label className="text-sm font-bold text-content-muted">Validity</Label>
               <Select value={validityDays} onValueChange={(v) => { setValidityDays(v ?? ""); setErrors((prev) => ({ ...prev, validityDays: undefined })); }}>
-                <SelectTrigger className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all ${errors.validityDays ? "border-red-400" : ""}`}>
+                <SelectTrigger className={`h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand focus:bg-transparent transition-all ${errors.validityDays ? "border-red-400" : ""}`}>
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-surface-subtle shadow-xl">
@@ -239,7 +246,7 @@ export default function CreateTicketTypeModal({
                 placeholder="Short description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand transition-all"
+                className="h-12 rounded-2xl border-surface-subtle bg-surface-page focus:ring-brand focus:border-brand focus:bg-transparent transition-all"
               />
             </div>
           </div>
