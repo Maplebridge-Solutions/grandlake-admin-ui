@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef } from "react";
+import type { MechanicsListHandle } from "@/components/manage-buses/mechanics-list";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Wrench } from "lucide-react";
+import { Plus, Wrench, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BusList from "@/components/manage-buses/bus-list";
 import BusForm from "@/components/manage-buses/bus-form";
 import MaintenanceManagement from "@/components/manage-buses/maintenance-management";
+import MechanicsList from "@/components/manage-buses/mechanics-list";
 import AddMechanicModal from "@/components/manage-buses/add-mechanic-modal";
 import type { BusData, MechanicData } from "@/lib/types/buses";
 
@@ -20,6 +22,7 @@ export default function ManageBusesPage() {
   const [selectedBus, setSelectedBus] = useState<BusData | undefined>(undefined);
   const [isMechanicModalOpen, setIsMechanicModalOpen] = useState(false);
   const onMechanicCreatedRef = useRef<((mechanic: MechanicData) => void) | null>(null);
+  const mechanicsListRef = useRef<MechanicsListHandle>(null);
 
   const handleAddBus = () => {
     setSelectedBus(undefined);
@@ -59,6 +62,14 @@ export default function ManageBusesPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="outline"
+              onClick={() => router.push("?view=mechanics")}
+              className="rounded-full px-6 h-11 border-brand text-brand hover:bg-brand-light font-semibold flex items-center gap-2 flex-1 sm:flex-none justify-center"
+            >
+              <Users size={18} />
+              Mechanics
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => handleMaintenance()}
               className="rounded-full px-6 h-11 border-brand text-brand hover:bg-brand-light font-semibold flex items-center gap-2 flex-1 sm:flex-none justify-center"
             >
@@ -96,6 +107,14 @@ export default function ManageBusesPage() {
             busId={maintenanceBusId}
           />
         )}
+
+        {view === "mechanics" && (
+          <MechanicsList
+            ref={mechanicsListRef}
+            onBack={handleBack}
+            onAddMechanic={() => setIsMechanicModalOpen(true)}
+          />
+        )}
       </div>
 
       <AddMechanicModal
@@ -105,6 +124,7 @@ export default function ManageBusesPage() {
           onMechanicCreatedRef.current?.(mechanic);
           onMechanicCreatedRef.current = null;
           setIsMechanicModalOpen(false);
+          mechanicsListRef.current?.refresh();
         }}
       />
     </div>
