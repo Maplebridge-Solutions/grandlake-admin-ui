@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import BusMap from "@/components/bus-map";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -95,9 +94,6 @@ function formatNumber(value: number) {
 }
 
 export default function DashboardPage() {
-  const [selectedBus, setSelectedBus] = useState<DashboardBusOperation | null>(
-    null,
-  );
   const [activeFilter, setActiveFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("This week");
 
@@ -190,13 +186,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 relative">
-      {/* Contained Full Screen Modal */}
-      {selectedBus && (
-        <div className="fixed inset-0 lg:left-64 top-20 z-40 bg-white animate-in slide-in-from-bottom-4 duration-300">
-          <BusMap onClose={() => setSelectedBus(null)} isContained />
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -285,7 +274,7 @@ export default function DashboardPage() {
                     Latest Bus Operations
                   </h2>
                   <p className="text-sm text-content-muted mt-1">
-                    Tap on an item to view real time location and more
+                    Live overview of all bus operations
                   </p>
                 </div>
                 <div className="flex items-center gap-1 p-1 bg-surface-page border border-surface-subtle rounded-2xl flex-wrap w-auto">
@@ -353,8 +342,7 @@ export default function DashboardPage() {
                       filteredBuses.map((bus, i) => (
                         <TableRow
                           key={i}
-                          className="hover:bg-brand-light/50 border-b border-surface-subtle transition-colors cursor-pointer"
-                          onClick={() => setSelectedBus(bus)}
+                          className="hover:bg-brand-light/50 border-b border-surface-subtle transition-colors"
                         >
                           <TableCell className="font-medium text-content-secondary py-4">
                             {bus.fleetNumber}
